@@ -121,6 +121,7 @@ export function Sidebar({ route }) {
               </button>
             </div>
           ))}
+        <Item icon="restore" label="Архив" view="archive" />
         <Item icon="trash" label="Корзина" view="trash" />
       </div>
       <div className="side-bottom">
@@ -250,6 +251,11 @@ export function SettingsSheet({ onClose }) {
           </button>
         </div>
         <div className="lbl">Прочее</div>
+        <button className="row-btn" onClick={() => setSettings({ autoArchive: data.settings.autoArchive === false })}>
+          <Icon name="restore" size={20} /> <span>Сразу переносить выполненные в архив</span>
+          <span style={{ flex: 1 }} />
+          <span className={'switch' + (data.settings.autoArchive !== false ? ' on' : '')} />
+        </button>
         <button className="row-btn" onClick={() => setSettings({ showCompleted: !data.settings.showCompleted })}>
           <Icon name="check" size={20} /> <span>Показывать выполненные</span>
           <span style={{ flex: 1 }} />

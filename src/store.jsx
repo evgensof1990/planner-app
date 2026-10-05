@@ -86,6 +86,19 @@ export function StoreProvider({ children }) {
     }
   }, [data]);
 
+  // Completed tasks (imported, synced, or done before the archive existed) go to the archive
+  useEffect(() => {
+    const stale = (t) => t.done && !t.archived && !t.deleted && !t.parentId && !justDone.has(t.id);
+    if (data.settings.autoArchive === false || !data.tasks.some(stale)) return;
+    setData((d) => {
+      const n = JSON.parse(JSON.stringify(d));
+      n.tasks.forEach((t) => {
+        if (stale(t)) t.archived = true;
+      });
+      return stamp(d, n);
+    });
+  }, [data]);
+
   const api = useMemo(() => {
     const mut = (fn) =>
       setData((d) => {
@@ -111,6 +124,13 @@ export function StoreProvider({ children }) {
           if (!t) return;
           t.done = !t.done;
           t.doneAt = t.done ? Date.now() : null;
+          if (t.done) {
+            justDone.add(t.id);
+            if (!t.parentId && n.settings.autoArchive !== false) t.archived = true;
+          } else {
+            justDone.delete(t.id);
+            t.archived = false;
+          }
         }),
       deleteTask: (id) =>
         mut((n) => {
@@ -130,6 +150,12 @@ export function StoreProvider({ children }) {
         mut((n) =>
           n.tasks.forEach((t) => {
             if (t.done && (projectId === undefined || t.projectId === projectId)) t.archived = true;
+          })
+        ),
+      clearArchive: () =>
+        mut((n) =>
+          n.tasks.forEach((t) => {
+            if (t.archived && !t.deleted) t.deleted = true;
           })
         ),
       addProject: (f) => {
@@ -301,7 +327,13 @@ function useSync(data, setData) {
 }
 
 // ---- selectors
-export const alive = (t) => !t.deleted && !t.archived;
+// Tasks completed during this session stay in place (struck through) until
+// the screen is reopened or the page is reloaded; then they live in the archive.
+export const justDone = new Set();
+export const forgetJustDone = () => justDone.clear();
+export const alive = (t) => !t.deleted && (!t.archived || justDone.has(t.id));
+// Still shown among open tasks: not done, or done just now
+export const pending = (t) => !t.done || justDone.has(t.id);
 export const PRIORITY_COLORS = ['', '#4f8ff7', '#f5b83d', '#f0574f'];
 export const PRIORITY_NAMES = ['Нет приоритета', 'Низкий', 'Средний', 'Высокий'];
 

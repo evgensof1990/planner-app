@@ -2073,3 +2073,57 @@ textarea {
     opacity: 0.35;
   }
 }
+
+/* ---------- completion cheer ---------- */
+.cb.cheer {
+  border-color: transparent !important;
+  background: transparent !important;
+  overflow: visible;
+}
+.cheer-emoji {
+  font-size: 19px;
+  line-height: 1;
+  display: block;
+  animation: cheer-pop 1.1s ease-out both;
+}
+@keyframes cheer-pop {
+  0% { transform: scale(0.2) rotate(-30deg); opacity: 0; }
+  25% { transform: scale(1.45) rotate(12deg); opacity: 1; }
+  45% { transform: scale(0.95) rotate(-8deg); }
+  65% { transform: scale(1.15) rotate(5deg); }
+  85% { transform: scale(1) rotate(0); opacity: 1; }
+  100% { transform: scale(0.6); opacity: 0; }
+}
+.task:has(.cb.cheer) {
+  animation: cheer-row 1.1s ease-out;
+}
+@keyframes cheer-row {
+  0%, 70% { background: var(--accent-dim); }
+  100% { background: transparent; }
+}
+.task-title {
+  transition: color 0.3s;
+}
+
+/* ---------- archive ---------- */
+.archive-row {
+  display: flex;
+  align-items: center;
+}
+.archive-row .task {
+  flex: 1;
+  min-width: 0;
+}
+.archive-date {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px 8px 6px;
+  color: var(--text2);
+  font-size: 13px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.archive-date:hover {
+  color: var(--accent);
+}

@@ -2,10 +2,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { App as CapApp } from '@capacitor/app';
 import Icon from './icons.jsx';
 import { UiCtx, Menu } from './components.jsx';
-import { useStore, PRIORITY_COLORS, PRIORITY_NAMES } from './store.jsx';
+import { useStore, forgetJustDone, PRIORITY_COLORS, PRIORITY_NAMES } from './store.jsx';
 import { todayKey } from './date.js';
 import { QuickAdd, DateSheet, ProjectPicker, TagPicker, TaskDetail, PromptSheet, ProjectEdit, HabitEdit, ConfirmSheet } from './sheets.jsx';
-import { ListView, PlansView, ProjectView, SearchView, TrashView, FilterView, NotificationsView } from './views.jsx';
+import { ListView, PlansView, ProjectView, SearchView, TrashView, ArchiveView, FilterView, NotificationsView } from './views.jsx';
 import { HabitsView } from './habits.jsx';
 import { CalendarView } from './calendar.jsx';
 import { PomodoroView, PomoStatsView, pomoEndReminder } from './pomodoro.jsx';
@@ -13,7 +13,7 @@ import { Sidebar, SettingsSheet } from './sidebar.jsx';
 import { isNative, syncNotifications, taskReminders, ensurePermission } from './notify.js';
 
 const HOME = { view: 'today' };
-const NO_FAB = new Set(['pomo', 'pomoStats', 'search', 'trash', 'habits']);
+const NO_FAB = new Set(['pomo', 'pomoStats', 'search', 'trash', 'archive', 'habits']);
 
 export default function App() {
   const store = useStore();
@@ -58,6 +58,7 @@ export default function App() {
       go: (r) => {
         setDrawer(false);
         setSheets([]);
+        forgetJustDone();
         setRoute((cur) => {
           if (cur.view === r.view && cur.id === r.id) return cur;
           setHistory((h) => [...h.slice(-30), cur]);
@@ -65,6 +66,7 @@ export default function App() {
         });
       },
       back: () => {
+        forgetJustDone();
         setHistory((h) => {
           setRoute(h.length ? h[h.length - 1] : HOME);
           return h.slice(0, -1);
@@ -185,6 +187,9 @@ export default function App() {
       break;
     case 'trash':
       view = <TrashView />;
+      break;
+    case 'archive':
+      view = <ArchiveView />;
       break;
     case 'filter':
       view = <FilterView />;

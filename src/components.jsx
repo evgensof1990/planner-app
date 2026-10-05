@@ -57,18 +57,28 @@ export function IconBtn({ name, onClick, active, size, title, dot, className = "
   );
 }
 
+const CHEERS = ['🎉', '🥳', '👏', '🔥', '💪', '⭐', '😎', '🚀', '✨', '👍', '🏆', '🙌', '🤘', '💥', '🎯', '🦄', '🌈', '🍀', '😺', '🤩'];
+
 export function Checkbox({ checked, priority = 0, onChange }) {
   const color = PRIORITY_COLORS[priority];
+  const [cheer, setCheer] = useState(null);
+  const timer = useRef();
+  useEffect(() => () => clearTimeout(timer.current), []);
   return (
     <button
-      className={'cb' + (checked ? ' on' : '')}
+      className={'cb' + (checked ? ' on' : '') + (cheer ? ' cheer' : '')}
       style={color && !checked ? { borderColor: color, background: color + '22' } : undefined}
       onClick={(e) => {
         e.stopPropagation();
+        clearTimeout(timer.current);
+        if (!checked) {
+          setCheer(CHEERS[Math.floor(Math.random() * CHEERS.length)]);
+          timer.current = setTimeout(() => setCheer(null), 1100);
+        } else setCheer(null);
         onChange?.();
       }}
     >
-      {checked && <Icon name="check" size={14} stroke={2.6} />}
+      {cheer ? <span className="cheer-emoji">{cheer}</span> : checked && <Icon name="check" size={14} stroke={2.6} />}
     </button>
   );
 }

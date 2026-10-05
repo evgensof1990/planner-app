@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState, useEffect } from 'react';
 import Icon from './icons.jsx';
 import { TopBar, IconBtn, TaskTree, TaskItem, Group, Empty, useUi } from './components.jsx';
-import { useStore, alive, sortTasks, PRIORITY_COLORS, PRIORITY_NAMES } from './store.jsx';
+import { useStore, alive, pending, sortTasks, PRIORITY_COLORS, PRIORITY_NAMES } from './store.jsx';
 import { MONTHS, MONTHS_GEN, WD_MON, WD_LOWER, addDays, diffDays, parseKey, todayKey, weekStart, relLabel, fmtLong } from './date.js';
 
 function MenuBtn() {
@@ -34,17 +34,17 @@ export function ListView({ route }) {
     showProject = false;
   } else if (route.view === 'today') {
     title = 'Сегодня';
-    list = all.filter((x) => x.date && (x.date === t || (x.date < t && !x.done)) && !(x.done && x.doneAt && new Date(x.doneAt).toDateString() !== new Date().toDateString() && x.date !== t));
+    list = all.filter((x) => x.date && (x.date === t || (x.date < t && pending(x))) && !(x.done && x.doneAt && new Date(x.doneAt).toDateString() !== new Date().toDateString() && x.date !== t));
   } else if (route.view === 'tag') {
     const tag = data.tags.find((x) => x.id === route.id);
     title = tag ? '#' + tag.name : 'Тег';
     list = all.filter((x) => x.tags.includes(route.id));
   }
   const open = sortTasks(
-    list.filter((x) => !x.done),
+    list.filter(pending),
     sort
   );
-  const done = data.settings.showCompleted ? list.filter((x) => x.done) : [];
+  const done = data.settings.showCompleted ? list.filter((x) => !pending(x)) : [];
   const overdue = route.view === 'today' ? open.filter((x) => x.date < t) : [];
   const rest = route.view === 'today' ? open.filter((x) => x.date >= t) : open;
   return (
@@ -96,7 +96,7 @@ export function FilterView() {
   const all = data.tasks.filter(alive);
   const list = sortTasks(
     all.filter((x) => {
-      if (x.done) return false;
+      if (!pending(x)) return false;
       if (prio >= 0 && x.priority !== prio) return false;
       if (tag && !x.tags.includes(tag)) return false;
       if (when === 'today' && x.date !== t) return false;
@@ -171,8 +171,8 @@ export function PlansView({ day, setDay }) {
   const groups = [];
   for (let i = 0; i < 14; i++) {
     const k = addDays(day, i);
-    let tasks = dated.filter((x) => (k === t ? x.date === t || (x.date < t && !x.done) : x.date === k));
-    if (!data.settings.showCompleted) tasks = tasks.filter((x) => !x.done);
+    let tasks = dated.filter((x) => (k === t ? x.date === t || (x.date < t && pending(x)) : x.date === k));
+    if (!data.settings.showCompleted) tasks = tasks.filter(pending);
     if (tasks.length || k === day) groups.push([k, tasks]);
   }
   return (
@@ -203,8 +203,8 @@ export function PlansView({ day, setDay }) {
         {groups.map(([k, tasks]) => {
           const dd = parseKey(k);
           const lbl = k === t ? 'сегодня' : k === addDays(t, 1) ? 'завтра' : MONTHS_GEN[dd.getMonth()];
-          const open = sortTasks(tasks.filter((x) => !x.done));
-          const done = tasks.filter((x) => x.done);
+          const open = sortTasks(tasks.filter(pending));
+          const done = tasks.filter((x) => !pending(x));
           return (
             <Group
               key={k}
@@ -238,7 +238,7 @@ export function ProjectView({ route }) {
   const all = data.tasks.filter((x) => alive(x) && x.projectId === p.id);
   const archivedCount = data.tasks.filter((x) => x.archived && !x.deleted && x.projectId === p.id).length;
   const roots = all.filter((x) => !x.parentId || !all.some((y) => y.id === x.parentId));
-  const bySection = (sid) => sortTasks(roots.filter((x) => (x.sectionId || null) === sid && (data.settings.showCompleted || !x.done)), p.sort || 'manual').sort((a, b) => a.done - b.done);
+  const bySection = (sid) => sortTasks(roots.filter((x) => (x.sectionId || null) === sid && (data.settings.showCompleted || pending(x))), p.sort || 'manual').sort((a, b) => !pending(a) - !pending(b));
   const cols = [{ id: null, name: 'Новые' }, ...p.sections];
   const menu = (e) =>
     ui.menu(e.currentTarget, [
@@ -455,6 +455,48 @@ export function TrashView() {
             <IconBtn name="close" title="Удалить навсегда" onClick={() => purgeTask(t.id)} />
           </div>
         ))}
+      </div>
+    </div>
+  );
+}
+
+/* ---------------- Archive ---------------- */
+export function ArchiveView() {
+  const { data, toggleTask, clearArchive } = useStore();
+  const ui = useUi();
+  const list = data.tasks.filter((t) => t.archived && !t.deleted).sort((a, b) => (b.doneAt || 0) - (a.doneAt || 0));
+  const groups = [];
+  for (const t of list) {
+    const d = new Date(t.doneAt || t.createdAt || Date.now());
+    const key = MONTHS[d.getMonth()].toLowerCase() + ' ' + d.getFullYear();
+    if (!groups.length || groups[groups.length - 1][0] !== key) groups.push([key, []]);
+    groups[groups.length - 1][1].push(t);
+  }
+  const pad = (n) => String(n).padStart(2, '0');
+  const fmt = (ts) => {
+    const d = new Date(ts);
+    return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()}`;
+  };
+  return (
+    <div className="view">
+      <TopBar title="Архив" left={<MenuBtn />}>
+        {list.length > 0 && <IconBtn name="trash" onClick={() => ui.confirm('Переместить все задачи из архива в корзину?', clearArchive, 'Очистить')} title="Очистить архив" />}
+      </TopBar>
+      <div className="scroll">
+        {list.length === 0 && <Empty text="Здесь появятся выполненные задачи" icon="restore" />}
+        {groups.map(([key, tasks]) => (
+          <Group key={key} title={key} count={tasks.length}>
+            {tasks.map((t) => (
+              <div key={t.id} className="archive-row">
+                <TaskItem task={t} />
+                <button className="archive-date" title="Вернуть из архива" onClick={() => (toggleTask(t.id), ui.toast('Задача возвращена'))}>
+                  {t.doneAt ? fmt(t.doneAt) : ''} <Icon name="restore" size={17} />
+                </button>
+              </div>
+            ))}
+          </Group>
+        ))}
+        <div className="list-pad" />
       </div>
     </div>
   );
