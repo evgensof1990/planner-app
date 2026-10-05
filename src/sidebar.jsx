@@ -15,7 +15,7 @@ export function Sidebar({ route }) {
   const [archOpen, setArchOpen] = useState(false);
   const t = todayKey();
   const all = data.tasks.filter((x) => alive(x) && !x.done && !x.parentId);
-  const inboxN = all.filter((x) => !x.projectId).length;
+  const inboxN = all.filter((x) => !x.projectId && !x.date).length;
   const todayN = all.filter((x) => x.date && x.date <= t).length;
   const s = q.toLowerCase();
   const projects = data.projects.filter((p) => !p.archived && p.name.toLowerCase().includes(s));

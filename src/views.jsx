@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState, useEffect } from 'react';
 import Icon from './icons.jsx';
 import { TopBar, IconBtn, TaskTree, TaskItem, Group, Empty, useUi } from './components.jsx';
+import { MonthCalendar } from './sheets.jsx';
 import { useStore, alive, pending, sortTasks, PRIORITY_COLORS, PRIORITY_NAMES } from './store.jsx';
 import { MONTHS, MONTHS_GEN, WD_MON, WD_LOWER, addDays, diffDays, parseKey, todayKey, weekStart, relLabel, fmtLong } from './date.js';
 
@@ -30,7 +31,7 @@ export function ListView({ route }) {
   let showProject = true;
   if (route.view === 'inbox') {
     title = 'Входящие';
-    list = all.filter((x) => !x.projectId);
+    list = all.filter((x) => !x.projectId && !x.date);
     showProject = false;
   } else if (route.view === 'today') {
     title = 'Сегодня';
@@ -68,7 +69,7 @@ export function ListView({ route }) {
       <div className="scroll">
         {open.length === 0 && done.length === 0 && <Empty text={route.view === 'today' ? 'На сегодня задач нет. Отдыхайте!' : 'Здесь пока пусто'} />}
         {overdue.length > 0 && (
-          <Group title={<span className="red">Просрочено</span>} count={overdue.length}>
+          <Group title={<span className="red">Просроченные задачи</span>} count={overdue.length}>
             <TaskTree tasks={overdue} all={all} showProject={showProject} />
           </Group>
         )}
@@ -163,21 +164,24 @@ export function PlansView({ day, setDay }) {
   const { data, archiveDone } = useStore();
   const ui = useUi();
   const [compact, setCompact] = useState(false);
+  const [month, setMonth] = useState(true);
   const t = todayKey();
   const all = data.tasks.filter(alive);
   const dated = all.filter((x) => x.date);
-  const marks = useMemo(() => new Set(dated.filter((x) => !x.done).map((x) => (x.date < t ? t : x.date))), [data.tasks]);
+  const marks = useMemo(() => new Set(dated.filter((x) => !x.done).map((x) => x.date)), [data.tasks]);
   const d = parseKey(day);
+  const overdue = sortTasks(dated.filter((x) => x.date < t && pending(x)));
   const groups = [];
   for (let i = 0; i < 14; i++) {
     const k = addDays(day, i);
-    let tasks = dated.filter((x) => (k === t ? x.date === t || (x.date < t && pending(x)) : x.date === k));
+    let tasks = dated.filter((x) => x.date === k);
     if (!data.settings.showCompleted) tasks = tasks.filter(pending);
     if (tasks.length || k === day) groups.push([k, tasks]);
   }
   return (
     <div className="view">
       <TopBar title="Планы" left={<MenuBtn />}>
+        <IconBtn name={month ? 'chevU' : 'calendar'} onClick={() => setMonth(!month)} title={month ? 'Свернуть до недели' : 'Показать месяц'} />
         <IconBtn name={compact ? 'list' : 'kanban'} onClick={() => setCompact(!compact)} title="Вид" />
         <IconBtn
           name="more"
@@ -189,6 +193,10 @@ export function PlansView({ day, setDay }) {
           }
         />
       </TopBar>
+      {month ? (
+        <MonthCalendar key={day.slice(0, 7)} value={day} onPick={setDay} marks={marks} />
+      ) : (
+      <>
       <div className="month-row">
         <button className="month-btn" onClick={() => ui.openDate({ date: day }, (v) => v.date && setDay(v.date))}>
           {MONTHS[d.getMonth()]} {d.getFullYear()} <Icon name="chevD" size={16} />
@@ -199,7 +207,16 @@ export function PlansView({ day, setDay }) {
         </div>
       </div>
       <WeekStrip day={day} setDay={setDay} marks={marks} />
+      </>
+      )}
       <div className="scroll">
+        {overdue.length > 0 && (
+          <Group title={<span className="red">Просроченные задачи</span>} count={overdue.length}>
+            <div className={compact ? 'compact' : ''}>
+              <TaskTree tasks={overdue} all={all} showDate={!compact} />
+            </div>
+          </Group>
+        )}
         {groups.map(([k, tasks]) => {
           const dd = parseKey(k);
           const lbl = k === t ? 'сегодня' : k === addDays(t, 1) ? 'завтра' : MONTHS_GEN[dd.getMonth()];
