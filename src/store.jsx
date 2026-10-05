@@ -194,6 +194,18 @@ export function StoreProvider({ children }) {
       deleteHabit: (id) => mut((n) => (n.habits = n.habits.filter((h) => h.id !== id))),
       addPomo: (s) => mut((n) => n.pomo.sessions.push({ ts: Date.now(), date: todayKey(), ...s })),
       setSettings: (patch) => mut((n) => Object.assign(n.settings, patch)),
+      importTickTick: (r, mode) =>
+        mut((n) => {
+          if (mode === 'replace') {
+            n.tasks = r.tasks;
+            n.projects = r.projects;
+            n.tags = r.tags;
+          } else {
+            n.tasks.push(...r.tasks);
+            n.projects.push(...r.projects);
+            n.tags.push(...r.tags);
+          }
+        }),
       importData: (d) => setData((cur) => stamp(cur, JSON.parse(JSON.stringify({ ...seed(), ...d })))),
     };
   }, []);

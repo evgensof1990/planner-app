@@ -4,6 +4,7 @@ import { useUi, Sheet, SheetHeader } from './components.jsx';
 import { useStore, alive } from './store.jsx';
 import { todayKey } from './date.js';
 import { isNative } from './notify.js';
+import { convertTickTick } from './ticktick.js';
 
 export function Sidebar({ route }) {
   const { data, deleteTag, updateProject, sync } = useStore();
@@ -144,7 +145,7 @@ export function Sidebar({ route }) {
 }
 
 export function SettingsSheet({ onClose }) {
-  const { data, setSettings, importData, emptyTrash } = useStore();
+  const { data, setSettings, importData, emptyTrash, importTickTick } = useStore();
   const ui = useUi();
   const exportJson = () => JSON.stringify(data, null, 1);
   const download = () => {
@@ -186,6 +187,31 @@ export function SettingsSheet({ onClose }) {
     inp.onchange = async () => inp.files[0] && applyImport(await inp.files[0].text());
     inp.click();
   };
+  const fromTickTick = () => {
+    const inp = document.createElement('input');
+    inp.type = 'file';
+    inp.accept = '.csv,text/csv';
+    inp.onchange = async () => {
+      if (!inp.files[0]) return;
+      try {
+        const r = convertTickTick(await inp.files[0].text());
+        const done = (mode) => {
+          importTickTick(r, mode);
+          ui.toast(`Перенесено задач: ${r.tasks.length}, проектов: ${r.projects.length}`);
+          onClose();
+        };
+        ui.confirm(
+          `В файле ${r.tasks.length} задач и ${r.projects.length} проектов. Заменить ими текущие задачи (примеры удалятся) или добавить к ним?`,
+          () => done('replace'),
+          'Заменить',
+          { label: 'Добавить', fn: () => done('add') }
+        );
+      } catch (e) {
+        ui.toast(e.message || 'Не удалось прочитать файл');
+      }
+    };
+    inp.click();
+  };
   const fromClipboard = async () => {
     try {
       applyImport(await navigator.clipboard.readText());
@@ -200,6 +226,11 @@ export function SettingsSheet({ onClose }) {
         <label className="lbl">Название / имя</label>
         <input className="field" value={data.settings.name} onChange={(e) => setSettings({ name: e.target.value })} />
         <SyncSection />
+        <div className="lbl">Перенос из TickTick</div>
+        <div className="hint">В TickTick: Настройки → Аккаунт → «Создать резервную копию». Выберите скачанный CSV-файл.</div>
+        <button className="btn wide" onClick={fromTickTick}>
+          <Icon name="download" size={18} /> Импорт из TickTick (CSV)
+        </button>
         <div className="lbl">Резервная копия</div>
         <div className="hint">Можно сохранить все данные в файл или буфер обмена и загрузить их обратно.</div>
         <div className="btn-grid">
