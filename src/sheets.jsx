@@ -423,13 +423,19 @@ export function TagPicker({ value, onPick, onClose }) {
 }
 
 /* ---------------- Confirm ---------------- */
-export function ConfirmSheet({ text, onYes, okLabel = 'Удалить', onClose }) {
+export function ConfirmSheet({ text, onYes, okLabel = 'Удалить', alt, onClose }) {
   return (
     <Sheet onClose={onClose}>
       <div className="confirm-text">{text}</div>
       <div className="sheet-actions">
-        <button className="btn" onClick={onClose}>
-          Отменить
+        <button
+          className="btn"
+          onClick={() => {
+            onClose();
+            alt?.fn();
+          }}
+        >
+          {alt ? alt.label : 'Отменить'}
         </button>
         <button
           className={'btn ' + (okLabel === 'Удалить' || okLabel === 'Очистить' ? 'danger-fill' : 'primary')}

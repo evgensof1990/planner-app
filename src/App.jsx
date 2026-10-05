@@ -78,7 +78,7 @@ export default function App() {
       openProjectPicker: (value, onPick) => push('project', { value, onPick }),
       openTags: (value, onPick) => push('tags', { value, onPick }),
       prompt: (props) => push('prompt', props),
-      confirm: (text, onYes, okLabel) => push('confirm', { text, onYes, okLabel }),
+      confirm: (text, onYes, okLabel, alt) => push('confirm', { text, onYes, okLabel, alt }),
       editProject: (project) => push('projectEdit', { project }),
       editHabit: (habit) => push('habitEdit', { habit }),
       openSettings: () => push('settings'),

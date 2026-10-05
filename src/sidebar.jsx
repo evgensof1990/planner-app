@@ -6,7 +6,7 @@ import { todayKey } from './date.js';
 import { isNative } from './notify.js';
 
 export function Sidebar({ route }) {
-  const { data, deleteTag, updateProject } = useStore();
+  const { data, deleteTag, updateProject, sync } = useStore();
   const ui = useUi();
   const [q, setQ] = useState('');
   const [projOpen, setProjOpen] = useState(true);
@@ -33,6 +33,11 @@ export function Sidebar({ route }) {
       <div className="account">
         <span className="avatar">{(data.settings.name || 'П')[0].toUpperCase()}</span>
         <span className="acc-name">{data.settings.name}</span>
+        {sync.status !== 'off' && (
+          <button className={'sync-dot ' + sync.status} onClick={sync.syncNow} title={sync.error || 'Синхронизация'}>
+            <Icon name="cloud" size={18} />
+          </button>
+        )}
         <button className="icon-btn" onClick={ui.openSettings}>
           <Icon name="settings" size={20} />
         </button>
@@ -194,8 +199,9 @@ export function SettingsSheet({ onClose }) {
       <div className="pad">
         <label className="lbl">Название / имя</label>
         <input className="field" value={data.settings.name} onChange={(e) => setSettings({ name: e.target.value })} />
-        <div className="lbl">Перенос данных между устройствами</div>
-        <div className="hint">Данные хранятся только на этом устройстве. Чтобы перенести их на телефон или макбук, экспортируйте и импортируйте.</div>
+        <SyncSection />
+        <div className="lbl">Резервная копия</div>
+        <div className="hint">Можно сохранить все данные в файл или буфер обмена и загрузить их обратно.</div>
         <div className="btn-grid">
           {!isNative && window.self === window.top && (
             <button className="btn" onClick={download}>
@@ -224,5 +230,84 @@ export function SettingsSheet({ onClose }) {
         <div className="hint center">Плановик · версия 1.0</div>
       </div>
     </Sheet>
+  );
+}
+
+const TOKEN_URL = 'https://github.com/settings/tokens/new?scopes=gist&description=' + encodeURIComponent('Плановик синхронизация');
+
+function SyncSection() {
+  const { sync } = useStore();
+  const ui = useUi();
+  const [token, setToken] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState(null);
+  const connect = async () => {
+    const t = token.trim();
+    if (!t) return;
+    setBusy(true);
+    setErr(null);
+    try {
+      const { gistId, existing } = await sync.probe(t);
+      if (existing) {
+        ui.confirm(
+          'В облаке уже есть данные с другого устройства. Заменить ими данные на этом устройстве? «Объединить» сохранит и то, и другое.',
+          () => sync.connect(t, gistId, 'replace').then(() => ui.toast('Синхронизация включена')),
+          'Заменить',
+          { label: 'Объединить', fn: () => sync.connect(t, gistId, 'merge').then(() => ui.toast('Синхронизация включена')) }
+        );
+      } else {
+        await sync.connect(t, null);
+        ui.toast('Синхронизация включена');
+      }
+      setToken('');
+    } catch (e) {
+      setErr(e.message);
+    }
+    setBusy(false);
+  };
+  const time = sync.last ? new Date(sync.last).toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : null;
+  return (
+    <>
+      <div className="lbl">Синхронизация</div>
+      {sync.status === 'off' ? (
+        <>
+          <div className="hint">
+            Данные синхронизируются между телефоном и макбуком через ваш аккаунт GitHub: они хранятся в приватном gist. Нужен токен с доступом только к gist, один и тот же на всех устройствах.
+          </div>
+          <a className="link-btn" href={TOKEN_URL} target="_blank" rel="noreferrer">
+            1. Создать токен на GitHub ↗
+          </a>
+          <div className="hint small">Срок действия выберите «No expiration», затем нажмите «Generate token» и скопируйте его.</div>
+          <input className="field" placeholder="2. Вставьте токен (ghp_…)" value={token} onChange={(e) => setToken(e.target.value)} autoComplete="off" spellCheck={false} />
+          {err && <div className="hint red">{err}</div>}
+          <button className="btn primary wide" disabled={busy || !token.trim()} onClick={connect}>
+            {busy ? 'Подключаю…' : '3. Включить синхронизацию'}
+          </button>
+        </>
+      ) : (
+        <>
+          <div className={'sync-status ' + sync.status}>
+            <Icon name={sync.status === 'error' ? 'close' : 'cloud'} size={18} />
+            <span>
+              {sync.status === 'syncing'
+                ? 'Синхронизация…'
+                : sync.status === 'error'
+                  ? sync.error
+                  : time
+                    ? 'Синхронизировано: ' + time
+                    : 'Синхронизация включена'}
+            </span>
+          </div>
+          <div className="btn-grid">
+            <button className="btn" onClick={sync.syncNow}>
+              <Icon name="sync" size={18} /> Синхронизировать
+            </button>
+            <button className="btn" onClick={() => ui.confirm('Отключить синхронизацию на этом устройстве? Данные останутся на месте.', sync.disconnect, 'Отключить')}>
+              <Icon name="close" size={18} /> Отключить
+            </button>
+          </div>
+        </>
+      )}
+    </>
   );
 }

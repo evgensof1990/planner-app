@@ -1,5 +1,6 @@
-import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { addDays, todayKey } from './date.js';
+import { stamp, merge, canon, getCfg, setCfg, readGist, writeGist, findGist, createGist } from './sync.js';
 
 const KEY = 'planner-data-v1';
 
@@ -90,7 +91,7 @@ export function StoreProvider({ children }) {
       setData((d) => {
         const n = JSON.parse(JSON.stringify(d));
         fn(n);
-        return n;
+        return stamp(d, n);
       });
     const task = (n, id) => n.tasks.find((t) => t.id === id);
     return {
@@ -193,14 +194,99 @@ export function StoreProvider({ children }) {
       deleteHabit: (id) => mut((n) => (n.habits = n.habits.filter((h) => h.id !== id))),
       addPomo: (s) => mut((n) => n.pomo.sessions.push({ ts: Date.now(), date: todayKey(), ...s })),
       setSettings: (patch) => mut((n) => Object.assign(n.settings, patch)),
-      importData: (d) => setData({ ...seed(), ...d }),
+      importData: (d) => setData((cur) => stamp(cur, JSON.parse(JSON.stringify({ ...seed(), ...d })))),
     };
   }, []);
 
-  return <Ctx.Provider value={{ data, ...api }}>{children}</Ctx.Provider>;
+  const sync = useSync(data, setData);
+
+  return <Ctx.Provider value={{ data, ...api, sync }}>{children}</Ctx.Provider>;
 }
 
 export const useStore = () => useContext(Ctx);
+
+function useSync(data, setData) {
+  const [state, setState] = useState(() => ({ status: getCfg() ? 'idle' : 'off', last: getCfg()?.last || null, error: null }));
+  const dataRef = useRef(data);
+  dataRef.current = data;
+  const running = useRef(false);
+  const again = useRef(false);
+  const synced = useRef(null);
+
+  const syncNow = useCallback(async () => {
+    const cfg = getCfg();
+    if (!cfg) return;
+    if (running.current) {
+      again.current = true;
+      return;
+    }
+    running.current = true;
+    setState((s) => ({ ...s, status: 'syncing' }));
+    try {
+      const remote = await readGist(cfg.token, cfg.gistId);
+      const merged = merge(dataRef.current, remote);
+      const mc = canon(merged);
+      if (mc !== canon(remote)) await writeGist(cfg.token, cfg.gistId, merged);
+      synced.current = mc;
+      if (mc !== canon(dataRef.current)) setData((cur) => merge(cur, merged));
+      const last = Date.now();
+      setCfg({ ...cfg, last });
+      setState({ status: 'idle', last, error: null });
+    } catch (e) {
+      setState((s) => ({ ...s, status: 'error', error: e.message }));
+    }
+    running.current = false;
+    if (again.current) {
+      again.current = false;
+      syncNow();
+    }
+  }, []);
+
+  // push local changes shortly after they happen
+  useEffect(() => {
+    if (!getCfg() || canon(data) === synced.current) return;
+    const id = setTimeout(syncNow, 1500);
+    return () => clearTimeout(id);
+  }, [data, syncNow]);
+
+  // pull periodically and whenever the app comes back to the foreground
+  useEffect(() => {
+    if (state.status === 'off') return;
+    syncNow();
+    const iv = setInterval(() => document.visibilityState === 'visible' && syncNow(), 30000);
+    const onVis = () => document.visibilityState === 'visible' && syncNow();
+    document.addEventListener('visibilitychange', onVis);
+    window.addEventListener('online', syncNow);
+    return () => {
+      clearInterval(iv);
+      document.removeEventListener('visibilitychange', onVis);
+      window.removeEventListener('online', syncNow);
+    };
+  }, [state.status === 'off', syncNow]);
+
+  // returns {existing: data|null, gistId}
+  const probe = async (token) => {
+    const gistId = await findGist(token);
+    return { gistId, existing: gistId ? await readGist(token, gistId) : null };
+  };
+  const connect = async (token, gistId, mode) => {
+    if (!gistId) gistId = await createGist(token, dataRef.current);
+    else if (mode === 'replace') {
+      const remote = await readGist(token, gistId);
+      synced.current = canon(remote);
+      setData(remote);
+    }
+    setCfg({ token, gistId, last: null });
+    setState({ status: 'idle', last: null, error: null });
+    setTimeout(syncNow, 300);
+  };
+  const disconnect = () => {
+    setCfg(null);
+    synced.current = null;
+    setState({ status: 'off', last: null, error: null });
+  };
+  return { ...state, syncNow, probe, connect, disconnect };
+}
 
 // ---- selectors
 export const alive = (t) => !t.deleted && !t.archived;

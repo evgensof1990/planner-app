@@ -2014,3 +2014,62 @@ textarea {
   background: var(--red);
   color: #fff;
 }
+
+.link-btn {
+  display: flex;
+  align-items: center;
+  height: 44px;
+  padding: 0 14px;
+  border-radius: 10px;
+  background: var(--accent-dim);
+  color: var(--accent);
+  font-weight: 500;
+  text-decoration: none;
+  margin-bottom: 4px;
+}
+.hint.small {
+  font-size: 12px;
+  padding-top: 2px;
+}
+.btn.wide {
+  width: 100%;
+  margin-bottom: 6px;
+}
+.btn:disabled {
+  opacity: 0.5;
+}
+.sync-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--surface2);
+  margin-bottom: 8px;
+  font-size: 14px;
+}
+.sync-status svg {
+  color: #5cc97b;
+  flex-shrink: 0;
+}
+.sync-status.error svg,
+.sync-status.error {
+  color: var(--red);
+}
+.sync-dot {
+  display: flex;
+  color: #5cc97b;
+  padding: 4px;
+}
+.sync-dot.syncing {
+  color: var(--accent);
+  animation: pulse 1s infinite alternate;
+}
+.sync-dot.error {
+  color: var(--red);
+}
+@keyframes pulse {
+  to {
+    opacity: 0.35;
+  }
+}
