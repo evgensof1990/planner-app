@@ -17,11 +17,20 @@ export const MONTHS_GEN = ['января', 'февраля', 'марта', 'ап
 export const MONTHS_SHORT = ['янв', 'февр', 'мар', 'апр', 'мая', 'июн', 'июл', 'авг', 'сент', 'окт', 'нояб', 'дек'];
 export const WD = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
 export const WD_LOWER = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'];
+// Weekday labels in display order; mutated in place by setWeekStart
 export const WD_MON = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+let firstDay = 1; // 1 = Monday, 0 = Sunday
+export const setWeekStart = (n) => {
+  firstDay = n === 0 ? 0 : 1;
+  const order = firstDay ? [1, 2, 3, 4, 5, 6, 0] : [0, 1, 2, 3, 4, 5, 6];
+  order.forEach((w, i) => (WD_MON[i] = WD[w]));
+};
+// position of a date inside its week (0..6)
+export const weekPos = (d) => (d.getDay() - firstDay + 7) % 7;
 
 export const weekStart = (k) => {
   const d = parseKey(k);
-  d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+  d.setDate(d.getDate() - weekPos(d));
   return keyOf(d);
 };
 
@@ -42,9 +51,9 @@ export const relLabel = (k) => {
 };
 
 export const monthGrid = (year, month) => {
-  // weeks starting Monday, null for padding
+  // full weeks, null for padding
   const first = new Date(year, month, 1);
-  const lead = (first.getDay() + 6) % 7;
+  const lead = weekPos(first);
   const days = new Date(year, month + 1, 0).getDate();
   const cells = [];
   for (let i = 0; i < lead; i++) cells.push(null);

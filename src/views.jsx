@@ -36,6 +36,13 @@ export function ListView({ route }) {
   } else if (route.view === 'today') {
     title = 'Сегодня';
     list = all.filter((x) => x.date && (x.date === t || (x.date < t && pending(x))) && !(x.done && x.doneAt && new Date(x.doneAt).toDateString() !== new Date().toDateString() && x.date !== t));
+  } else if (route.view === 'noproject') {
+    title = 'Без проекта';
+    list = all.filter((x) => !x.projectId);
+    showProject = false;
+  } else if (route.view === 'someday') {
+    title = 'Когда-нибудь';
+    list = all.filter((x) => !x.date);
   } else if (route.view === 'tag') {
     const tag = data.tags.find((x) => x.id === route.id);
     title = tag ? '#' + tag.name : 'Тег';

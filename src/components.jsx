@@ -61,6 +61,7 @@ const CHEERS = ['🎉', '🥳', '👏', '🔥', '💪', '⭐', '😎', '🚀', '
 
 export function Checkbox({ checked, priority = 0, onChange }) {
   const color = PRIORITY_COLORS[priority];
+  const { data } = useStore();
   const [cheer, setCheer] = useState(null);
   const timer = useRef();
   useEffect(() => () => clearTimeout(timer.current), []);
@@ -71,7 +72,7 @@ export function Checkbox({ checked, priority = 0, onChange }) {
       onClick={(e) => {
         e.stopPropagation();
         clearTimeout(timer.current);
-        if (!checked) {
+        if (!checked && data.settings.cheer !== false) {
           setCheer(CHEERS[Math.floor(Math.random() * CHEERS.length)]);
           timer.current = setTimeout(() => setCheer(null), 1100);
         } else setCheer(null);

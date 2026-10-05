@@ -15,8 +15,9 @@ const loadState = () => {
   }
 };
 
-function beep() {
+function beep(sound = true) {
   try {
+    if (!sound) throw 0;
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
     [0, 0.35, 0.7].forEach((t) => {
       const o = ctx.createOscillator();
@@ -52,6 +53,17 @@ export function PomodoroView() {
   const [, force] = useState(0);
   const stRef = useRef(st);
   stRef.current = st;
+  const ss0 = data.settings;
+  const cfg = { work: ss0.pomoMinutes || 25, short: ss0.pomoShort || 5, long: ss0.pomoLong || 15, every: ss0.pomoEvery || 4, auto: !!ss0.pomoAuto, sound: ss0.pomoSound !== false };
+  const cfgRef = useRef(cfg);
+  cfgRef.current = cfg;
+  const phase = st.phase || 'work';
+  // settings changed while idle: apply new phase length
+  useEffect(() => {
+    if (st.running) return;
+    const mins = phase === 'work' ? cfg.work : phase === 'long' ? cfg.long : cfg.short;
+    if (mins !== st.minutes) setSt((x) => ({ ...x, minutes: mins, left: mins * 60 }));
+  }, [cfg.work, cfg.short, cfg.long]);
 
   useEffect(() => {
     localStorage.setItem(SKEY, JSON.stringify(st));
@@ -66,10 +78,24 @@ export function PomodoroView() {
     const iv = setInterval(() => {
       const s = stRef.current;
       if (s.running && s.endAt <= Date.now()) {
-        addPomo({ minutes: s.minutes, kind: 'pomo' });
-        beep();
-        ui.toast('Помодоро завершено! Время отдохнуть 🍅');
-        setSt({ ...s, running: false, endAt: null, left: s.minutes * 60, cycles: (s.cycles + 1) % 4 || 4 });
+        const cfg = cfgRef.current;
+        const phase = s.phase || 'work';
+        let next;
+        let cycles = s.cycles;
+        if (phase === 'work') {
+          addPomo({ minutes: s.minutes, kind: 'pomo' });
+          cycles = s.cycles + 1;
+          next = cycles % cfg.every === 0 ? 'long' : 'short';
+          ui.toast(next === 'long' ? 'Помодоро завершено! Время длинного перерыва 🍅' : 'Помодоро завершено! Время отдохнуть 🍅');
+        } else {
+          next = 'work';
+          if (cycles >= cfg.every) cycles = 0;
+          ui.toast('Перерыв закончился, пора за работу 💪');
+        }
+        beep(cfg.sound);
+        const mins = next === 'work' ? cfg.work : next === 'long' ? cfg.long : cfg.short;
+        const auto = cfg.auto;
+        setSt({ ...s, phase: next, minutes: mins, running: auto, endAt: auto ? Date.now() + mins * 6e4 : null, left: mins * 60, cycles });
       }
       force((x) => x + 1);
     }, 500);
@@ -82,16 +108,17 @@ export function PomodoroView() {
   const pick = (m) => {
     if (st.running) return;
     setSettings({ pomoMinutes: m });
-    setSt({ ...st, minutes: m, left: m * 60 });
+    setSt({ ...st, phase: 'work', minutes: m, left: m * 60 });
   };
   const toggle = () => {
     if (st.running) setSt({ ...st, running: false, left, endAt: null });
-    else setSt({ ...st, running: true, endAt: Date.now() + left * 1000, cycles: st.cycles >= 4 ? 0 : st.cycles });
+    else setSt({ ...st, running: true, endAt: Date.now() + left * 1000 });
   };
   const reset = () => {
     const spent = total - left;
-    if (spent > 60) addPomo({ minutes: Math.round(spent / 60), kind: 'focus' });
-    setSt({ ...st, running: false, endAt: null, left: total });
+    if (phase === 'work' && spent > 60) addPomo({ minutes: Math.round(spent / 60), kind: 'focus' });
+    if (phase !== 'work' || spent < 1) setSt({ ...st, phase: 'work', running: false, endAt: null, minutes: cfg.work, left: cfg.work * 60 });
+    else setSt({ ...st, running: false, endAt: null, left: total });
   };
 
   // stopwatch
@@ -128,8 +155,8 @@ export function PomodoroView() {
       {isPomo ? (
         <div className="presets">
           {PRESETS.map((m, i) => (
-            <button key={m} className={'preset' + (st.minutes === m ? ' on' : '')} onClick={() => pick(m)} disabled={st.running}>
-              <i style={{ width: 10 + i * 2.2, height: 10 + i * 2.2 }}>{st.minutes === m && <Icon name="check" size={10} stroke={3} />}</i>
+            <button key={m} className={'preset' + (phase === 'work' && st.minutes === m ? ' on' : '')} onClick={() => pick(m)} disabled={st.running}>
+              <i style={{ width: 10 + i * 2.2, height: 10 + i * 2.2 }}>{phase === 'work' && st.minutes === m && <Icon name="check" size={10} stroke={3} />}</i>
               <span>{m}</span>
             </button>
           ))}
@@ -161,9 +188,10 @@ export function PomodoroView() {
             <div className="ring-time">
               {mm >= 60 && !isPomo ? `${Math.floor(mm / 60)}:${pad(mm % 60)}` : pad(mm)}:{pad(ss)}
             </div>
+            {isPomo && <div className="ring-phase">{phase === 'work' ? 'Работа' : phase === 'long' ? 'Длинный перерыв' : 'Короткий перерыв'}</div>}
             {isPomo && (
               <div className="ring-dots">
-                {[0, 1, 2, 3].map((i) => (
+                {[...Array(cfg.every).keys()].map((i) => (
                   <i key={i} className={i < st.cycles ? 'on' : ''} />
                 ))}
               </div>
@@ -270,6 +298,7 @@ export function PomoStatsView() {
 
 export function pomoEndReminder() {
   const s = loadState();
-  if (s && s.running && s.endAt > Date.now()) return [{ key: 'pomo', at: new Date(s.endAt), title: 'Помодоро завершено 🍅', body: 'Время сделать перерыв' }];
+  if (s && s.running && s.endAt > Date.now())
+    return [(s.phase || 'work') === 'work' ? { key: 'pomo', at: new Date(s.endAt), title: 'Помодоро завершено 🍅', body: 'Время сделать перерыв' } : { key: 'pomo', at: new Date(s.endAt), title: 'Перерыв закончился', body: 'Пора за работу 💪' }];
   return [];
 }

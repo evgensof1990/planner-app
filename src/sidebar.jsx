@@ -1,10 +1,9 @@
 import { useState } from 'react';
 import Icon from './icons.jsx';
-import { useUi, Sheet, SheetHeader } from './components.jsx';
+import { useUi } from './components.jsx';
 import { useStore, alive } from './store.jsx';
 import { todayKey } from './date.js';
-import { isNative } from './notify.js';
-import { convertTickTick } from './ticktick.js';
+import { isHidden } from './layout.js';
 
 export function Sidebar({ route }) {
   const { data, deleteTag, updateProject, sync } = useStore();
@@ -20,6 +19,9 @@ export function Sidebar({ route }) {
   const s = q.toLowerCase();
   const projects = data.projects.filter((p) => !p.archived && p.name.toLowerCase().includes(s));
   const archived = data.projects.filter((p) => p.archived);
+  const noProjN = all.filter((x) => !x.projectId).length;
+  const hidden = data.settings.sideHidden || [];
+  const show = (k) => !isHidden(hidden, k);
   const is = (v, id) => route.view === v && (id === undefined || route.id === id);
   const Item = ({ icon, emoji, label, view, id, count, onClick }) =>
     (!s || label.toLowerCase().includes(s)) && (
@@ -48,11 +50,11 @@ export function Sidebar({ route }) {
           <Icon name="search" size={18} />
           <input placeholder="Поиск разделов и проектов" value={q} onChange={(e) => setQ(e.target.value)} />
         </div>
-        <Item icon="inbox" label="Входящие" view="inbox" count={inboxN} />
-        <Item icon="star" label="Сегодня" view="today" count={todayN} />
-        <Item icon="calendar" label="Планы" view="plans" />
-        <Item icon="habit" label="Привычки" view="habits" />
-        <Item icon="grid" label="Календарь" view="calendar" />
+        {show('inbox') && <Item icon="inbox" label="Входящие" view="inbox" count={inboxN} />}
+        {show('today') && <Item icon="star" label="Сегодня" view="today" count={todayN} />}
+        {show('plans') && <Item icon="calendar" label="Планы" view="plans" />}
+        {show('calendar') && <Item icon="grid" label="Календарь" view="calendar" />}
+        {show('habits') && <Item icon="habit" label="Привычки" view="habits" />}
         <div className="nav-section" onClick={() => setProjOpen(!projOpen)}>
           <Icon name="list" size={21} />
           <span className="nav-label">Мои проекты и списки</span>
@@ -89,8 +91,8 @@ export function Sidebar({ route }) {
           </>
         )}
         <div className="nav-div" />
-        <Item icon="filter" label="Фильтр" view="filter" />
-        <div className="nav-section" onClick={() => setTagsOpen(!tagsOpen)}>
+        {show('filter') && <Item icon="filter" label="Фильтр" view="filter" />}
+        {show('tags') && <div className="nav-section" onClick={() => setTagsOpen(!tagsOpen)}>
           <Icon name="tag" size={21} />
           <span className="nav-label">Теги</span>
           <button
@@ -104,8 +106,8 @@ export function Sidebar({ route }) {
             <Icon name="plus" size={18} />
           </button>
           <Icon name={tagsOpen ? 'chevD' : 'chevR'} size={16} />
-        </div>
-        {tagsOpen &&
+        </div>}
+        {tagsOpen && show('tags') &&
           data.tags.map((tg) => (
             <div key={tg.id} className={'nav-item' + (is('tag', tg.id) ? ' on' : '')} onClick={() => ui.go({ view: 'tag', id: tg.id })}>
               <span className="tag-hash">#</span>
@@ -121,8 +123,10 @@ export function Sidebar({ route }) {
               </button>
             </div>
           ))}
-        <Item icon="restore" label="Архив" view="archive" />
-        <Item icon="trash" label="Корзина" view="trash" />
+        {show('noproject') && <Item icon="noProject" label="Без проекта" view="noproject" count={noProjN} />}
+        {show('someday') && <Item icon="someday" label="Когда-нибудь" view="someday" />}
+        {show('archive') && <Item icon="restore" label="Архив" view="archive" />}
+        {show('trash') && <Item icon="trash" label="Корзина" view="trash" />}
       </div>
       <div className="side-bottom">
         <button className="icon-btn" onClick={() => ui.closeDrawer()} title="Закрыть">
@@ -145,206 +149,3 @@ export function Sidebar({ route }) {
   );
 }
 
-export function SettingsSheet({ onClose }) {
-  const { data, setSettings, importData, emptyTrash, importTickTick } = useStore();
-  const ui = useUi();
-  const exportJson = () => JSON.stringify(data, null, 1);
-  const download = () => {
-    const blob = new Blob([exportJson()], { type: 'application/json' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `planner-${todayKey()}.json`;
-    a.click();
-  };
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(exportJson());
-      ui.toast('Данные скопированы в буфер обмена');
-    } catch (e) {
-      ui.toast('Не удалось скопировать');
-    }
-  };
-  const applyImport = (text) => {
-    try {
-      const d = JSON.parse(text);
-      if (!d.tasks) throw new Error();
-      ui.confirm(
-        'Заменить текущие данные импортированными?',
-        () => {
-          importData(d);
-          ui.toast('Данные импортированы');
-          onClose();
-        },
-        'Заменить'
-      );
-    } catch (e) {
-      ui.toast('Неверный формат данных');
-    }
-  };
-  const fromFile = () => {
-    const inp = document.createElement('input');
-    inp.type = 'file';
-    inp.accept = 'application/json,.json';
-    inp.onchange = async () => inp.files[0] && applyImport(await inp.files[0].text());
-    inp.click();
-  };
-  const fromTickTick = () => {
-    const inp = document.createElement('input');
-    inp.type = 'file';
-    inp.accept = '.csv,text/csv';
-    inp.onchange = async () => {
-      if (!inp.files[0]) return;
-      try {
-        const r = convertTickTick(await inp.files[0].text());
-        const done = (mode) => {
-          importTickTick(r, mode);
-          ui.toast(`Перенесено задач: ${r.tasks.length}, проектов: ${r.projects.length}`);
-          onClose();
-        };
-        ui.confirm(
-          `В файле ${r.tasks.length} задач и ${r.projects.length} проектов. Заменить ими текущие задачи (примеры удалятся) или добавить к ним?`,
-          () => done('replace'),
-          'Заменить',
-          { label: 'Добавить', fn: () => done('add') }
-        );
-      } catch (e) {
-        ui.toast(e.message || 'Не удалось прочитать файл');
-      }
-    };
-    inp.click();
-  };
-  const fromClipboard = async () => {
-    try {
-      applyImport(await navigator.clipboard.readText());
-    } catch (e) {
-      ui.prompt({ title: 'Вставьте данные (JSON)', onSave: applyImport });
-    }
-  };
-  return (
-    <Sheet onClose={onClose}>
-      <SheetHeader title="Настройки" onClose={onClose} />
-      <div className="pad">
-        <label className="lbl">Название / имя</label>
-        <input className="field" value={data.settings.name} onChange={(e) => setSettings({ name: e.target.value })} />
-        <SyncSection />
-        <div className="lbl">Перенос из TickTick</div>
-        <div className="hint">В TickTick: Настройки → Аккаунт → «Создать резервную копию». Выберите скачанный CSV-файл.</div>
-        <button className="btn wide" onClick={fromTickTick}>
-          <Icon name="download" size={18} /> Импорт из TickTick (CSV)
-        </button>
-        <div className="lbl">Резервная копия</div>
-        <div className="hint">Можно сохранить все данные в файл или буфер обмена и загрузить их обратно.</div>
-        <div className="btn-grid">
-          {!isNative && window.self === window.top && (
-            <button className="btn" onClick={download}>
-              <Icon name="download" size={18} /> Скачать файл
-            </button>
-          )}
-          <button className="btn" onClick={copy}>
-            <Icon name="copy" size={18} /> Копировать
-          </button>
-          <button className="btn" onClick={fromFile}>
-            <Icon name="note" size={18} /> Импорт из файла
-          </button>
-          <button className="btn" onClick={fromClipboard}>
-            <Icon name="restore" size={18} /> Вставить
-          </button>
-        </div>
-        <div className="lbl">Прочее</div>
-        <button className="row-btn" onClick={() => setSettings({ autoArchive: data.settings.autoArchive === false })}>
-          <Icon name="restore" size={20} /> <span>Сразу переносить выполненные в архив</span>
-          <span style={{ flex: 1 }} />
-          <span className={'switch' + (data.settings.autoArchive !== false ? ' on' : '')} />
-        </button>
-        <button className="row-btn" onClick={() => setSettings({ showCompleted: !data.settings.showCompleted })}>
-          <Icon name="check" size={20} /> <span>Показывать выполненные</span>
-          <span style={{ flex: 1 }} />
-          <span className={'switch' + (data.settings.showCompleted ? ' on' : '')} />
-        </button>
-        <button className="row-btn danger" onClick={() => ui.confirm('Очистить корзину? Задачи удалятся навсегда.', emptyTrash, 'Очистить')}>
-          <Icon name="trash" size={20} /> <span>Очистить корзину</span>
-        </button>
-        <div className="hint center">Плановик · версия 1.0</div>
-      </div>
-    </Sheet>
-  );
-}
-
-const TOKEN_URL = 'https://github.com/settings/tokens/new?scopes=gist&description=' + encodeURIComponent('Плановик синхронизация');
-
-function SyncSection() {
-  const { sync } = useStore();
-  const ui = useUi();
-  const [token, setToken] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState(null);
-  const connect = async () => {
-    const t = token.trim();
-    if (!t) return;
-    setBusy(true);
-    setErr(null);
-    try {
-      const { gistId, existing } = await sync.probe(t);
-      if (existing) {
-        ui.confirm(
-          'В облаке уже есть данные с другого устройства. Заменить ими данные на этом устройстве? «Объединить» сохранит и то, и другое.',
-          () => sync.connect(t, gistId, 'replace').then(() => ui.toast('Синхронизация включена')),
-          'Заменить',
-          { label: 'Объединить', fn: () => sync.connect(t, gistId, 'merge').then(() => ui.toast('Синхронизация включена')) }
-        );
-      } else {
-        await sync.connect(t, null);
-        ui.toast('Синхронизация включена');
-      }
-      setToken('');
-    } catch (e) {
-      setErr(e.message);
-    }
-    setBusy(false);
-  };
-  const time = sync.last ? new Date(sync.last).toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : null;
-  return (
-    <>
-      <div className="lbl">Синхронизация</div>
-      {sync.status === 'off' ? (
-        <>
-          <div className="hint">
-            Данные синхронизируются между телефоном и макбуком через ваш аккаунт GitHub: они хранятся в приватном gist. Нужен токен с доступом только к gist, один и тот же на всех устройствах.
-          </div>
-          <a className="link-btn" href={TOKEN_URL} target="_blank" rel="noreferrer">
-            1. Создать токен на GitHub ↗
-          </a>
-          <div className="hint small">Срок действия выберите «No expiration», затем нажмите «Generate token» и скопируйте его.</div>
-          <input className="field" placeholder="2. Вставьте токен (ghp_…)" value={token} onChange={(e) => setToken(e.target.value)} autoComplete="off" spellCheck={false} />
-          {err && <div className="hint red">{err}</div>}
-          <button className="btn primary wide" disabled={busy || !token.trim()} onClick={connect}>
-            {busy ? 'Подключаю…' : '3. Включить синхронизацию'}
-          </button>
-        </>
-      ) : (
-        <>
-          <div className={'sync-status ' + sync.status}>
-            <Icon name={sync.status === 'error' ? 'close' : 'cloud'} size={18} />
-            <span>
-              {sync.status === 'syncing'
-                ? 'Синхронизация…'
-                : sync.status === 'error'
-                  ? sync.error
-                  : time
-                    ? 'Синхронизировано: ' + time
-                    : 'Синхронизация включена'}
-            </span>
-          </div>
-          <div className="btn-grid">
-            <button className="btn" onClick={sync.syncNow}>
-              <Icon name="sync" size={18} /> Синхронизировать
-            </button>
-            <button className="btn" onClick={() => ui.confirm('Отключить синхронизацию на этом устройстве? Данные останутся на месте.', sync.disconnect, 'Отключить')}>
-              <Icon name="close" size={18} /> Отключить
-            </button>
-          </div>
-        </>
-      )}
-    </>
-  );
-}

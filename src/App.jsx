@@ -3,13 +3,15 @@ import { App as CapApp } from '@capacitor/app';
 import Icon from './icons.jsx';
 import { UiCtx, Menu } from './components.jsx';
 import { useStore, forgetJustDone, PRIORITY_COLORS, PRIORITY_NAMES } from './store.jsx';
-import { todayKey } from './date.js';
+import { todayKey, setWeekStart } from './date.js';
 import { QuickAdd, DateSheet, ProjectPicker, TagPicker, TaskDetail, PromptSheet, ProjectEdit, HabitEdit, ConfirmSheet } from './sheets.jsx';
 import { ListView, PlansView, ProjectView, SearchView, TrashView, ArchiveView, FilterView, NotificationsView } from './views.jsx';
 import { HabitsView } from './habits.jsx';
 import { CalendarView } from './calendar.jsx';
 import { PomodoroView, PomoStatsView, pomoEndReminder } from './pomodoro.jsx';
-import { Sidebar, SettingsSheet } from './sidebar.jsx';
+import { Sidebar } from './sidebar.jsx';
+import { SettingsSheet } from './settings.jsx';
+import { TOOL_ITEMS, TOOL_SHORT, THEMES, DEFAULT_ACCENT, isHidden } from './layout.js';
 import { isNative, syncNotifications, taskReminders, ensurePermission } from './notify.js';
 
 const HOME = { view: 'today' };
@@ -33,6 +35,25 @@ export default function App() {
   const [planDay, setPlanDay] = useState(todayKey());
   const [calDay, setCalDay] = useState(todayKey());
   const toastTimer = useRef();
+  setWeekStart(data.settings.weekStart === 0 ? 0 : 1);
+
+  // theme and accent colour
+  const theme = data.settings.theme || 'dark';
+  const accent = data.settings.accent || DEFAULT_ACCENT;
+  useEffect(() => {
+    const root = document.documentElement;
+    root.dataset.theme = theme;
+    root.style.setProperty('--accent', accent);
+    const bg = (THEMES.find((x) => x[0] === theme) || THEMES[2])[2];
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', bg);
+    if (isNative)
+      import('@capacitor/status-bar')
+        .then(({ StatusBar, Style }) => {
+          StatusBar.setStyle({ style: theme === 'light' || theme === 'gray' ? Style.Light : Style.Dark });
+          StatusBar.setBackgroundColor({ color: bg });
+        })
+        .catch(() => {});
+  }, [theme, accent]);
 
   useEffect(() => sessionStorage.setItem('route', JSON.stringify(route)), [route]);
 
@@ -83,7 +104,7 @@ export default function App() {
       confirm: (text, onYes, okLabel, alt) => push('confirm', { text, onYes, okLabel, alt }),
       editProject: (project) => push('projectEdit', { project }),
       editHabit: (habit) => push('habitEdit', { habit }),
-      openSettings: () => push('settings'),
+      openSettings: (tab) => push('settings', { tab: typeof tab === 'string' ? tab : undefined }),
       menu: (anchor, items) => setMenu({ anchor, items }),
       toast: (text, action) => {
         clearTimeout(toastTimer.current);
@@ -118,7 +139,7 @@ export default function App() {
 
   // Back button (Android) and Escape (desktop)
   const stateRef = useRef();
-  stateRef.current = { menu, sheets, drawer, route, history };
+  stateRef.current = { menu, sheets, drawer, route, history, hotkey: data.settings.hotkey !== false };
   useEffect(() => {
     const handleBack = () => {
       const s = stateRef.current;
@@ -129,7 +150,18 @@ export default function App() {
       else if (s.route.view !== HOME.view) setRoute(HOME);
       else if (isNative) CapApp.exitApp();
     };
-    const onKey = (e) => e.key === 'Escape' && handleBack();
+    const onKey = (e) => {
+      if (e.key === 'Escape') return handleBack();
+      // quick add hotkey: N (outside text fields)
+      const tag = (e.target.tagName || '').toLowerCase();
+      if (tag === 'input' || tag === 'textarea' || tag === 'select' || e.target.isContentEditable) return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const s = stateRef.current;
+      if ((e.code === 'KeyN' || e.key === 'n' || e.key === 'т') && s.hotkey && !s.sheets.length) {
+        e.preventDefault();
+        ui.quickAdd(s.fabDefaults());
+      }
+    };
     window.addEventListener('keydown', onKey);
     let sub;
     if (isNative) CapApp.addListener('backButton', handleBack).then((h) => (sub = h));
@@ -161,6 +193,8 @@ export default function App() {
   switch (route.view) {
     case 'inbox':
     case 'today':
+    case 'noproject':
+    case 'someday':
     case 'tag':
       view = <ListView route={route} key={route.view + route.id} />;
       break;
@@ -200,6 +234,8 @@ export default function App() {
     default:
       view = <ListView route={HOME} />;
   }
+
+  stateRef.current.fabDefaults = fabDefaults;
 
   const tabs = [
     ['menu', 'Меню', null],
@@ -244,6 +280,7 @@ export default function App() {
         </aside>
         <div className="drawer-backdrop" onClick={() => setDrawer(false)} />
         <main className="main">
+          <Toolbar route={route} ui={ui} />
           {view}
           {!NO_FAB.has(route.view) && (
             <button className="fab" onClick={() => ui.quickAdd(fabDefaults())} aria-label="Добавить задачу">
@@ -281,5 +318,52 @@ export default function App() {
         )}
       </div>
     </UiCtx.Provider>
+  );
+}
+
+function Toolbar({ route, ui }) {
+  const { data, setSettings } = useStore();
+  const st = data.settings;
+  const collapsed = !!st.toolCollapsed;
+  const t = todayKey();
+  const now = new Date();
+  const hm = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+  const soon = data.tasks.some((x) => !x.deleted && !x.archived && !x.done && x.date === t && x.time && x.time >= hm);
+  const items = TOOL_ITEMS.filter(([k]) => !isHidden(st.toolHidden, k) && (!collapsed || TOOL_SHORT.has(k)));
+  const act = {
+    calendar: () => ui.go({ view: 'calendar' }),
+    pomo: () => ui.go({ view: 'pomo' }),
+    notifications: () => ui.go({ view: 'notifications' }),
+    habits: () => ui.go({ view: 'habits' }),
+    filter: () => ui.go({ view: 'filter' }),
+    settings: () => ui.openSettings(),
+    tags: (e) =>
+      data.tags.length
+        ? ui.menu(
+            e.currentTarget,
+            data.tags.map((tg) => ({ icon: 'tag', label: '#' + tg.name, active: route.view === 'tag' && route.id === tg.id, onClick: () => ui.go({ view: 'tag', id: tg.id }) }))
+          )
+        : ui.toast('Тегов пока нет. Добавьте тег в задаче через #'),
+  };
+  if (route.view === 'pomo' || route.view === 'pomoStats') return null;
+  return (
+    <div className="toolbar">
+      {items.map(([k, label, ic]) =>
+        k === 'search' ? (
+          <button key={k} className="tb-search" onClick={() => ui.go({ view: 'search' })}>
+            <Icon name="search" size={16} /> Поиск
+          </button>
+        ) : (
+          <button key={k} className={'tb-btn' + (route.view === k ? ' on' : '')} title={label} onClick={act[k]}>
+            <Icon name={ic} size={20} />
+            {k === 'notifications' && soon && <i className="badge" />}
+          </button>
+        )
+      )}
+      <span className="tb-sep" />
+      <button className="tb-btn" title={collapsed ? 'Показать все кнопки' : 'Свернуть'} onClick={() => setSettings({ toolCollapsed: !collapsed })}>
+        <Icon name={collapsed ? 'dchevL' : 'dchevR'} size={18} />
+      </button>
+    </div>
   );
 }

@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { TopBar, IconBtn, useUi } from './components.jsx';
 import { useStore, alive, PRIORITY_COLORS } from './store.jsx';
-import { MONTHS, WD, WD_MON, addDays, monthGrid, parseKey, todayKey, pad } from './date.js';
+import { calendarItems, onCalendarsChange, refreshStale } from './ical.js';
+import { MONTHS, WD, WD_MON, addDays, monthGrid, parseKey, todayKey, pad, weekStart } from './date.js';
 
 const HOUR = 54;
 const MODES = [
@@ -19,9 +20,13 @@ export function CalendarView({ day, setDay }) {
   const touch = useRef();
   const t = todayKey();
   const span = MODES.find((m) => m[0] === mode)[2];
-  const startDay = mode === 'week' ? addDays(day, -((parseKey(day).getDay() + 6) % 7)) : day;
+  const startDay = mode === 'week' ? weekStart(day) : day;
   const days = [...Array(span).keys()].map((i) => addDays(startDay, i));
-  const tasks = data.tasks.filter((x) => alive(x) && x.date);
+  const [, bump] = useState(0);
+  useEffect(() => onCalendarsChange(() => bump((x) => x + 1)), []);
+  useEffect(() => refreshStale(data.settings.calendars), [data.settings.calendars]);
+  const tasks = [...data.tasks.filter((x) => alive(x) && x.date), ...calendarItems(data.settings.calendars)];
+  const open = (x) => (x.ext ? ui.toast(`${x.calName}: ${x.title}${x.time ? ', ' + x.time : ''}`) : ui.openTask(x.id));
   const d = parseKey(day);
   const now = new Date();
 
@@ -80,7 +85,7 @@ export function CalendarView({ day, setDay }) {
               >
                 <span className="cm-n">{parseKey(k).getDate()}</span>
                 {list.slice(0, 3).map((x) => (
-                  <span key={x.id} className={'cm-ev' + (x.done ? ' done' : '')}>
+                  <span key={x.id} className={'cm-ev' + (x.done ? ' done' : '')} style={x.ext ? { background: x.color + '33' } : undefined}>
                     {x.title}
                   </span>
                 ))}
@@ -107,7 +112,7 @@ export function CalendarView({ day, setDay }) {
                 {tasks
                   .filter((x) => x.date === k && !x.time)
                   .map((x) => (
-                    <button key={x.id} className={'cal-ev allday' + (x.done ? ' done' : '')} onClick={() => ui.openTask(x.id)}>
+                    <button key={x.id} className={'cal-ev allday' + (x.done ? ' done' : '')} style={x.ext ? { background: x.color + '33' } : undefined} onClick={() => open(x)}>
                       {x.title}
                     </button>
                   ))}
@@ -146,11 +151,16 @@ export function CalendarView({ day, setDay }) {
                         <button
                           key={x.id}
                           className={'cal-ev' + (x.done ? ' done' : '')}
-                          style={{ top: ((hh * 60 + mm) / 60) * HOUR + 1, height: HOUR - 3, borderLeftColor: PRIORITY_COLORS[x.priority] || 'var(--accent)' }}
-                          onClick={() => ui.openTask(x.id)}
+                          style={{
+                            top: ((hh * 60 + mm) / 60) * HOUR + 1,
+                            height: x.ext ? Math.max(HOUR / 2, (x.dur / 60) * HOUR) - 3 : HOUR - 3,
+                            borderLeftColor: x.ext ? x.color : PRIORITY_COLORS[x.priority] || 'var(--accent)',
+                            ...(x.ext ? { background: x.color + '30' } : {}),
+                          }}
+                          onClick={() => open(x)}
                           onContextMenu={(e) => {
                             e.preventDefault();
-                            toggleTask(x.id);
+                            if (!x.ext) toggleTask(x.id);
                           }}
                         >
                           <b>{x.time}</b> {x.title}
