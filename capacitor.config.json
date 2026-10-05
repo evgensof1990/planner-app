@@ -1,0 +1,10 @@
+{
+  "appId": "com.evgeny.planner",
+  "appName": "Плановик",
+  "webDir": "dist",
+  "backgroundColor": "#101010",
+  "android": { "backgroundColor": "#101010" },
+  "plugins": {
+    "LocalNotifications": { "iconColor": "#A984F0" }
+  }
+}

@@ -1,0 +1,61 @@
+name: Build APK and web
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+      - run: npm run build
+      - run: npm run build:single
+      - run: npx cap sync android
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Build release APK
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon
+          cp app/build/outputs/apk/release/app-release.apk ../planner.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: planner-apk
+          path: planner.apk
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.${{ github.run_number }}
+          name: Плановик 1.0.${{ github.run_number }}
+          files: |
+            planner.apk
+            dist-single/index.html
+
+      - name: Push build outputs to the "builds" branch
+        run: |
+          mkdir out && cp planner.apk out/ && cp dist-single/index.html out/planner.html
+          cd out
+          git init -q -b builds
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add . && git commit -qm "Build ${{ github.run_number }}"
+          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}" builds
