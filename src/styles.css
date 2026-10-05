@@ -2004,3 +2004,13 @@ textarea {
 .task-meta .sep {
   margin: 0 4px;
 }
+
+.confirm-text {
+  padding: 18px 20px 8px;
+  font-size: 16px;
+  line-height: 1.45;
+}
+.btn.danger-fill {
+  background: var(--red);
+  color: #fff;
+}

@@ -108,7 +108,7 @@ export function Sidebar({ route }) {
                 className="icon-btn sm"
                 onClick={(e) => {
                   e.stopPropagation();
-                  if (confirm(`Удалить тег «${tg.name}»?`)) deleteTag(tg.id);
+                  ui.confirm(`Удалить тег «${tg.name}»?`, () => deleteTag(tg.id));
                 }}
               >
                 <Icon name="close" size={14} />
@@ -161,11 +161,15 @@ export function SettingsSheet({ onClose }) {
     try {
       const d = JSON.parse(text);
       if (!d.tasks) throw new Error();
-      if (confirm('Заменить текущие данные импортированными?')) {
-        importData(d);
-        ui.toast('Данные импортированы');
-        onClose();
-      }
+      ui.confirm(
+        'Заменить текущие данные импортированными?',
+        () => {
+          importData(d);
+          ui.toast('Данные импортированы');
+          onClose();
+        },
+        'Заменить'
+      );
     } catch (e) {
       ui.toast('Неверный формат данных');
     }
@@ -193,7 +197,7 @@ export function SettingsSheet({ onClose }) {
         <div className="lbl">Перенос данных между устройствами</div>
         <div className="hint">Данные хранятся только на этом устройстве. Чтобы перенести их на телефон или макбук, экспортируйте и импортируйте.</div>
         <div className="btn-grid">
-          {!isNative && (
+          {!isNative && window.self === window.top && (
             <button className="btn" onClick={download}>
               <Icon name="download" size={18} /> Скачать файл
             </button>
@@ -214,7 +218,7 @@ export function SettingsSheet({ onClose }) {
           <span style={{ flex: 1 }} />
           <span className={'switch' + (data.settings.showCompleted ? ' on' : '')} />
         </button>
-        <button className="row-btn danger" onClick={() => confirm('Очистить корзину?') && emptyTrash()}>
+        <button className="row-btn danger" onClick={() => ui.confirm('Очистить корзину? Задачи удалятся навсегда.', emptyTrash, 'Очистить')}>
           <Icon name="trash" size={20} /> <span>Очистить корзину</span>
         </button>
         <div className="hint center">Плановик · версия 1.0</div>

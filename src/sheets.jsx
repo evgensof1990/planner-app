@@ -333,6 +333,7 @@ export function DateSheet({ value, onSave, onClose, timeFirst }) {
 /* ---------------- Project picker ---------------- */
 export function ProjectPicker({ value, onPick, onClose }) {
   const { data, addProject } = useStore();
+  const ui = useUi();
   const [q, setQ] = useState('');
   const list = data.projects.filter((p) => !p.archived && p.name.toLowerCase().includes(q.toLowerCase()));
   const pick = (pid, sid = null) => {
@@ -350,8 +351,8 @@ export function ProjectPicker({ value, onPick, onClose }) {
         <button
           className="pick accent"
           onClick={() => {
-            const name = q.trim() || prompt('Название проекта');
-            if (name) pick(addProject({ name }).id);
+            if (q.trim()) pick(addProject({ name: q.trim() }).id);
+            else ui.prompt({ title: 'Новый проект', placeholder: 'Название проекта', onSave: (name) => pick(addProject({ name }).id) });
           }}
         >
           <Icon name="plus" size={20} /> {q.trim() ? `Создать «${q.trim()}»` : 'Добавить проект'}
@@ -421,6 +422,29 @@ export function TagPicker({ value, onPick, onClose }) {
   );
 }
 
+/* ---------------- Confirm ---------------- */
+export function ConfirmSheet({ text, onYes, okLabel = 'Удалить', onClose }) {
+  return (
+    <Sheet onClose={onClose}>
+      <div className="confirm-text">{text}</div>
+      <div className="sheet-actions">
+        <button className="btn" onClick={onClose}>
+          Отменить
+        </button>
+        <button
+          className={'btn ' + (okLabel === 'Удалить' || okLabel === 'Очистить' ? 'danger-fill' : 'primary')}
+          onClick={() => {
+            onClose();
+            onYes();
+          }}
+        >
+          {okLabel}
+        </button>
+      </div>
+    </Sheet>
+  );
+}
+
 /* ---------------- Prompt ---------------- */
 export function PromptSheet({ title, value = '', placeholder, onSave, onClose }) {
   const [v, setV] = useState(value);
@@ -484,6 +508,7 @@ export function ProjectEdit({ project, onClose }) {
 /* ---------------- Habit edit ---------------- */
 export function HabitEdit({ habit, onClose }) {
   const { addHabit, updateHabit, deleteHabit } = useStore();
+  const ui = useUi();
   const [f, setF] = useState(habit || { name: '', emoji: '✅', color: COLORS[0] });
   const ok = () => {
     if (!f.name.trim()) return;
@@ -517,10 +542,10 @@ export function HabitEdit({ habit, onClose }) {
           <button
             className="btn danger"
             onClick={() => {
-              if (confirm('Удалить привычку?')) {
+              ui.confirm('Удалить привычку?', () => {
                 deleteHabit(habit.id);
                 onClose();
-              }
+              });
             }}
           >
             Удалить

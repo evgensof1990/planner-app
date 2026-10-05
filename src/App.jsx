@@ -4,7 +4,7 @@ import Icon from './icons.jsx';
 import { UiCtx, Menu } from './components.jsx';
 import { useStore, PRIORITY_COLORS, PRIORITY_NAMES } from './store.jsx';
 import { todayKey } from './date.js';
-import { QuickAdd, DateSheet, ProjectPicker, TagPicker, TaskDetail, PromptSheet, ProjectEdit, HabitEdit } from './sheets.jsx';
+import { QuickAdd, DateSheet, ProjectPicker, TagPicker, TaskDetail, PromptSheet, ProjectEdit, HabitEdit, ConfirmSheet } from './sheets.jsx';
 import { ListView, PlansView, ProjectView, SearchView, TrashView, FilterView, NotificationsView } from './views.jsx';
 import { HabitsView } from './habits.jsx';
 import { CalendarView } from './calendar.jsx';
@@ -78,6 +78,7 @@ export default function App() {
       openProjectPicker: (value, onPick) => push('project', { value, onPick }),
       openTags: (value, onPick) => push('tags', { value, onPick }),
       prompt: (props) => push('prompt', props),
+      confirm: (text, onYes, okLabel) => push('confirm', { text, onYes, okLabel }),
       editProject: (project) => push('projectEdit', { project }),
       editHabit: (habit) => push('habitEdit', { habit }),
       openSettings: () => push('settings'),
@@ -217,6 +218,8 @@ export default function App() {
         return <TagPicker {...p} />;
       case 'prompt':
         return <PromptSheet {...p} />;
+      case 'confirm':
+        return <ConfirmSheet {...p} />;
       case 'projectEdit':
         return <ProjectEdit {...p} />;
       case 'habitEdit':

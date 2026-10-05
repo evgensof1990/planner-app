@@ -257,10 +257,10 @@ export function ProjectView({ route }) {
         label: 'Удалить проект',
         danger: true,
         onClick: () => {
-          if (confirm(`Удалить проект «${p.name}»? Задачи попадут в корзину.`)) {
+          ui.confirm(`Удалить проект «${p.name}»? Задачи попадут в корзину.`, () => {
             deleteProject(p.id);
             ui.go({ view: 'inbox' });
-          }
+          });
         },
       },
     ]);
@@ -346,7 +346,7 @@ export function ProjectView({ route }) {
             <button
               className="row-btn muted"
               onClick={() => {
-                if (confirm('Вернуть задачи из архива?')) data.tasks.filter((x) => x.archived && x.projectId === p.id).forEach((x) => updateTask(x.id, { archived: false }));
+                ui.confirm('Вернуть задачи из архива?', () => data.tasks.filter((x) => x.archived && x.projectId === p.id).forEach((x) => updateTask(x.id, { archived: false })), 'Вернуть');
               }}
             >
               <span>Задачи в архиве</span>
@@ -441,7 +441,7 @@ export function TrashView() {
   return (
     <div className="view">
       <TopBar title="Корзина" left={<MenuBtn />}>
-        {list.length > 0 && <IconBtn name="trash" onClick={() => confirm('Удалить всё навсегда?') && emptyTrash()} title="Очистить корзину" />}
+        {list.length > 0 && <IconBtn name="trash" onClick={() => ui.confirm('Удалить всё из корзины навсегда?', emptyTrash, 'Очистить')} title="Очистить корзину" />}
       </TopBar>
       <div className="scroll">
         {list.length === 0 && <Empty text="Корзина пуста" icon="trash" />}
