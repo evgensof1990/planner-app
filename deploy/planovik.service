@@ -1,0 +1,24 @@
+[Unit]
+Description=Planovik server (planner + Yandex Calendar sync)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=planovik
+Group=planovik
+WorkingDirectory=/opt/planovik
+EnvironmentFile=/etc/planovik.env
+Environment=TZ=Europe/Moscow
+Environment=DATA_DIR=/var/lib/planovik
+ExecStart=/usr/bin/env node server/index.js
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/planovik
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

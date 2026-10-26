@@ -127,3 +127,27 @@ export async function createGist(token, data) {
   });
   return g.id;
 }
+
+// ---- Own server (Плановик на своей машине): the server merges and returns the shared copy.
+// cfg: {kind: 'server', url, key}
+export const isServer = (cfg) => cfg?.kind === 'server';
+
+export async function api(cfg, path, opts = {}) {
+  let r;
+  try {
+    r = await fetch(cfg.url.replace(/\/$/, '') + path, {
+      ...opts,
+      cache: 'no-store',
+      headers: { Authorization: 'Bearer ' + cfg.key, ...(opts.body ? { 'Content-Type': 'application/json' } : {}) },
+    });
+  } catch (e) {
+    throw new Error('Нет связи с сервером');
+  }
+  if (r.status === 401) throw new Error('Сервер не принял ключ доступа');
+  const body = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(body.error || 'Ошибка сервера ' + r.status);
+  return body;
+}
+
+export const serverRead = (cfg) => api(cfg, '/api/data');
+export const serverSync = (cfg, data) => api(cfg, '/api/sync', { method: 'POST', body: JSON.stringify(data) });
