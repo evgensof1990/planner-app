@@ -32,7 +32,7 @@ function seed() {
   const home = uid();
   const sWork = uid();
   const tasks = [
-    mkTask({ title: 'Добро пожаловать в Плановик 👋', date: t, priority: 3 }),
+    mkTask({ title: 'Добро пожаловать в Планнер 👋', date: t, priority: 3 }),
     mkTask({ title: 'Нажмите «+», чтобы добавить задачу', date: t }),
     mkTask({ title: 'Удерживайте задачу, чтобы открыть меню действий', date: t }),
     mkTask({ title: 'Купить продукты', date: addDays(t, 1), time: '18:00', projectId: home }),

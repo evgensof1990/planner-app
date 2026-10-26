@@ -126,7 +126,7 @@ function General() {
       <button className="row-btn danger" style={{ marginTop: 12 }} onClick={() => ui.confirm('Очистить корзину? Задачи удалятся навсегда.', emptyTrash, 'Очистить')}>
         <Icon name="trash" size={20} /> <span>Очистить корзину</span>
       </button>
-      <div className="hint center">Плановик · версия 1.0</div>
+      <div className="hint center">Планнер · версия 1.0</div>
     </>
   );
 }
