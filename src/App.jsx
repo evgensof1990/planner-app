@@ -248,9 +248,9 @@ export default function App() {
 
   const tabs = [
     ['menu', 'Меню', null],
-    ['inbox', 'Входящие', 'inbox'],
     ['star', 'Сегодня', 'today'],
     ['calendar', 'Планы', 'plans'],
+    ['grid', 'Календарь', 'calendar'],
   ];
 
   const renderSheet = (s) => {
