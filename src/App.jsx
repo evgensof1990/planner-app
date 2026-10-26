@@ -4,7 +4,7 @@ import Icon from './icons.jsx';
 import { UiCtx, Menu } from './components.jsx';
 import { useStore, forgetJustDone, PRIORITY_COLORS, PRIORITY_NAMES } from './store.jsx';
 import { todayKey, setWeekStart } from './date.js';
-import { QuickAdd, DateSheet, ProjectPicker, TagPicker, TaskDetail, PromptSheet, ProjectEdit, HabitEdit, ConfirmSheet } from './sheets.jsx';
+import { QuickAdd, DateSheet, ProjectPicker, TagPicker, TaskDetail, PromptSheet, ProjectEdit, HabitEdit, ConfirmSheet, SlotSheet } from './sheets.jsx';
 import { ListView, PlansView, ProjectView, SearchView, TrashView, ArchiveView, FilterView, NotificationsView } from './views.jsx';
 import { HabitsView } from './habits.jsx';
 import { CalendarView } from './calendar.jsx';
@@ -97,6 +97,7 @@ export default function App() {
       closeDrawer: () => setDrawer(false),
       quickAdd: (defaults) => push('quick', { defaults }),
       openTask: (id) => push('task', { id }),
+      suggestTime: (task) => push('slots', { task }),
       openDate: (value, onSave, timeFirst) => push('date', { value, onSave, timeFirst }),
       openProjectPicker: (value, onPick) => push('project', { value, onPick }),
       openTags: (value, onPick) => push('tags', { value, onPick }),
@@ -261,6 +262,8 @@ export default function App() {
         return <PromptSheet {...p} />;
       case 'confirm':
         return <ConfirmSheet {...p} />;
+      case 'slots':
+        return <SlotSheet {...p} />;
       case 'projectEdit':
         return <ProjectEdit {...p} />;
       case 'habitEdit':

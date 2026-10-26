@@ -2,7 +2,10 @@ import { useEffect, useRef, useState } from 'react';
 import Icon from './icons.jsx';
 import { Sheet, SheetHeader, Checkbox, useUi, DateChip } from './components.jsx';
 import { useStore, PRIORITY_COLORS, PRIORITY_NAMES } from './store.jsx';
-import { MONTHS, WD_MON, addDays, monthGrid, parseKey, pad, relLabel, todayKey } from './date.js';
+import { MONTHS, WD_MON, REPEATS, addDays, monthGrid, parseKey, pad, relLabel, todayKey } from './date.js';
+import { parseQuick } from './quickparse.js';
+import { suggestSlots, slotLabel, DEFAULT_DURATION } from './scheduler.js';
+import { busyEvents } from './ical.js';
 
 export const REMIND_OPTIONS = [
   [null, 'Нет'],
@@ -13,13 +16,15 @@ export const REMIND_OPTIONS = [
   [1440, 'За 1 день'],
 ];
 const remindLabel = (v) => (REMIND_OPTIONS.find((o) => o[0] === v) || REMIND_OPTIONS[0])[1];
+export const DURATIONS = [15, 30, 45, 60, 90, 120, 180, 240];
+export const durLabel = (m) => (m < 60 ? `${m} мин` : `${Math.floor(m / 60)} ч${m % 60 ? ` ${m % 60} мин` : ''}`);
 
 export const EMOJIS = ['📁', '💼', '🏡', '💡', '💰', '🎯', '📚', '🏋️', '🚗', '✈️', '🛒', '❤️', '🧘', '🎨', '🧑‍💻', '📈', '🏝️', '⚠️', '🇬🇧', '🍎', '🥗', '🌙', '🔥', '⭐', '🎵', '🐶', '👶', '🛠️', '📝', '✅'];
 export const COLORS = ['#a984f0', '#5cc97b', '#4fc3f7', '#f5b83d', '#f0574f', '#f78fb3', '#4f8ff7', '#9e9e9e'];
 
 /* ---------------- Quick add ---------------- */
 export function QuickAdd({ defaults = {}, onClose }) {
-  const { data, addTask } = useStore();
+  const { data, addTask, addTag } = useStore();
   const ui = useUi();
   const [title, setTitle] = useState('');
   const [f, setF] = useState({ date: null, time: null, remind: null, projectId: null, sectionId: null, priority: 0, tags: [], parentId: null, ...defaults });
@@ -27,18 +32,39 @@ export function QuickAdd({ defaults = {}, onClose }) {
   useEffect(() => {
     setTimeout(() => inp.current?.focus(), 60);
   }, []);
-  const project = data.projects.find((p) => p.id === f.projectId);
+  // what the typed line says: "отчёт до пятницы 2ч #работа"
+  const q = parseQuick(title, { projects: data.projects, tags: data.tags });
+  const eff = {
+    ...f,
+    date: q.date || f.date,
+    time: q.time || (q.date ? null : f.time),
+    deadline: q.deadline || f.deadline || null,
+    duration: q.duration || f.duration || null,
+    priority: q.priority || f.priority,
+    projectId: q.projectId || f.projectId,
+    sectionId: q.projectId ? null : f.sectionId,
+    tags: [...new Set([...f.tags, ...q.tags])],
+  };
+  const project = data.projects.find((p) => p.id === eff.projectId);
   // refocus the input after a nested sheet closes so Enter keeps working
   const setFF = (v) => {
     setF(v);
     setTimeout(() => inp.current?.focus(), 80);
   };
-  const submit = () => {
+  const create = () => {
+    const tags = [...eff.tags, ...q.newTags.map((name) => (data.tags.find((t) => t.name === name) || addTag(name)).id)];
+    return addTask({ ...eff, tags, title: q.title || title.trim() });
+  };
+  const submit = (plan) => {
     if (!title.trim()) return;
-    addTask({ ...f, title: title.trim() });
+    const t = create();
     setTitle('');
-    ui.toast('Задача добавлена');
-    inp.current?.focus();
+    // a task with a length or a deadline but no time gets a slot offer right away
+    if (!t.time && (plan || t.duration || t.deadline)) ui.suggestTime(t);
+    else {
+      ui.toast('Задача добавлена');
+      inp.current?.focus();
+    }
   };
   return (
     <Sheet onClose={onClose} className="quick-add">
@@ -46,7 +72,7 @@ export function QuickAdd({ defaults = {}, onClose }) {
         <input
           ref={inp}
           className="qa-input"
-          placeholder="Новая задача"
+          placeholder="Например: отчёт до пятницы 2ч #работа"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && submit()}
@@ -55,7 +81,7 @@ export function QuickAdd({ defaults = {}, onClose }) {
           className="icon-btn"
           title="Открыть полностью"
           onClick={() => {
-            const t = addTask({ ...f, title: title.trim() });
+            const t = create();
             onClose();
             ui.openTask(t.id);
           }}
@@ -64,32 +90,50 @@ export function QuickAdd({ defaults = {}, onClose }) {
         </button>
       </div>
       <div className="qa-chips">
-        {f.date && (
+        {eff.date && (
           <span className="chip accent">
-            {relLabel(f.date)}
-            <button onClick={() => setF({ ...f, date: null, time: null })}>
-              <Icon name="close" size={14} />
-            </button>
+            {relLabel(eff.date)}
+            {!q.date && (
+              <button onClick={() => setF({ ...f, date: null, time: null })}>
+                <Icon name="close" size={14} />
+              </button>
+            )}
           </span>
         )}
-        {f.time ? (
+        {eff.time ? (
           <span className="chip accent">
-            {f.time}
-            <button onClick={() => setF({ ...f, time: null })}>
-              <Icon name="close" size={14} />
-            </button>
+            {eff.time}
+            {!q.time && (
+              <button onClick={() => setF({ ...f, time: null })}>
+                <Icon name="close" size={14} />
+              </button>
+            )}
           </span>
         ) : (
-          <button className="chip ghost" onClick={() => ui.openDate(f, (v) => setFF({ ...f, ...v }), true)}>
-            Время
-          </button>
+          <>
+            <button className="chip ghost" onClick={() => ui.openDate(f, (v) => setFF({ ...f, ...v }), true)}>
+              Время
+            </button>
+            {title.trim() && (
+              <button className="chip ghost" onClick={() => submit(true)}>
+                <Icon name="clock" size={14} /> Подобрать время
+              </button>
+            )}
+          </>
         )}
-        {f.priority > 0 && (
-          <span className="chip" style={{ color: PRIORITY_COLORS[f.priority] }}>
-            <Icon name="flag" size={14} /> {PRIORITY_NAMES[f.priority]}
+        {eff.deadline && <span className="chip accent">до {relLabel(eff.deadline).toLowerCase()}</span>}
+        {eff.duration && <span className="chip accent">{durLabel(eff.duration)}</span>}
+        {q.projectId && project && (
+          <span className="chip accent">
+            {project.emoji} {project.name}
           </span>
         )}
-        {f.tags.map((id) => {
+        {eff.priority > 0 && (
+          <span className="chip" style={{ color: PRIORITY_COLORS[eff.priority] }}>
+            <Icon name="flag" size={14} /> {PRIORITY_NAMES[eff.priority]}
+          </span>
+        )}
+        {eff.tags.map((id) => {
           const t = data.tags.find((x) => x.id === id);
           return t ? (
             <span key={id} className="chip">
@@ -97,9 +141,14 @@ export function QuickAdd({ defaults = {}, onClose }) {
             </span>
           ) : null;
         })}
+        {q.newTags.map((name) => (
+          <span key={name} className="chip">
+            #{name} <small>новый</small>
+          </span>
+        ))}
       </div>
       <div className="qa-tools">
-        <button className="icon-btn" onClick={() => ui.openDate(f, (v) => setFF({ ...f, ...v }))} style={f.date ? { color: 'var(--accent)' } : undefined}>
+        <button className="icon-btn" onClick={() => ui.openDate(f, (v) => setFF({ ...f, ...v }))} style={eff.date ? { color: 'var(--accent)' } : undefined}>
           <Icon name="calendar" />
         </button>
         <button className="icon-btn" onClick={() => ui.openTags(f.tags, (tags) => setFF({ ...f, tags }))}>
@@ -107,7 +156,7 @@ export function QuickAdd({ defaults = {}, onClose }) {
         </button>
         <button
           className="icon-btn"
-          style={{ color: PRIORITY_COLORS[f.priority] || undefined }}
+          style={{ color: PRIORITY_COLORS[eff.priority] || undefined }}
           onClick={(e) =>
             ui.menu(
               e.currentTarget,
@@ -122,8 +171,69 @@ export function QuickAdd({ defaults = {}, onClose }) {
           <span>{project ? project.name : 'Без проекта'}</span>
         </button>
         <div style={{ flex: 1 }} />
-        <button className={'send-btn' + (title.trim() ? ' on' : '')} onClick={submit}>
+        <button className={'send-btn' + (title.trim() ? ' on' : '')} onClick={() => submit()}>
           <Icon name="send" size={20} />
+        </button>
+      </div>
+    </Sheet>
+  );
+}
+
+/* ---------------- Time suggestions ---------------- */
+// Offers free slots for a task: the best one first, then alternatives; nothing is set until a tap
+export function SlotSheet({ task: initial, onClose }) {
+  const { data, updateTask } = useStore();
+  const ui = useUi();
+  const task = data.tasks.find((t) => t.id === initial.id) || initial;
+  const [more, setMore] = useState(false);
+  const [duration, setDuration] = useState(task.duration || DEFAULT_DURATION);
+  const slots = suggestSlots({ ...task, duration }, { tasks: data.tasks, projects: data.projects, events: busyEvents(data.settings.calendars), rules: data.settings.planRules, count: 6 });
+  const shown = more ? slots : slots.slice(0, 3);
+  const pick = (s) => {
+    updateTask(task.id, { date: s.date, time: s.time, duration: s.duration });
+    ui.toast('Запланировано: ' + slotLabel(s));
+    onClose();
+  };
+  return (
+    <Sheet onClose={onClose}>
+      <div className="sheet-title center">Когда сделать?</div>
+      <div className="slot-task">{task.title}</div>
+      <div className="slot-dur">
+        {[15, 30, 60, 90, 120].map((m) => (
+          <button key={m} className={'chip' + (m === duration ? ' accent' : ' ghost')} onClick={() => setDuration(m)}>
+            {durLabel(m)}
+          </button>
+        ))}
+      </div>
+      <div className="rows">
+        {!slots.length && <div className="row-btn muted">Свободного окна в ближайшие три недели не нашлось</div>}
+        {shown.map((s, i) => (
+          <button key={s.date + s.time} className={'row-btn boxed slot' + (i === 0 ? ' best' : '')} onClick={() => pick(s)}>
+            <span>
+              {slotLabel(s)}
+              {s.late && <small className="slot-late"> после дедлайна</small>}
+            </span>
+            {i === 0 ? <span className="chip sm accent">Лучший</span> : <Icon name="check" size={18} />}
+          </button>
+        ))}
+        {!more && slots.length > 3 && (
+          <button className="row-btn muted" onClick={() => setMore(true)}>
+            Ещё варианты
+          </button>
+        )}
+      </div>
+      <div className="sheet-actions">
+        <button className="btn" onClick={onClose}>
+          Без времени
+        </button>
+        <button
+          className="btn"
+          onClick={() => {
+            onClose();
+            ui.openDate(task, (v) => updateTask(task.id, { ...v, duration }), true);
+          }}
+        >
+          Выбрать самому
         </button>
       </div>
     </Sheet>
@@ -473,11 +583,12 @@ export function ProjectEdit({ project, onClose }) {
   const { addProject, updateProject } = useStore();
   const ui = useUi();
   const [f, setF] = useState(project || { name: '', emoji: '📁', description: '' });
+  const area = f.area || (/работ/i.test(f.name) ? 'work' : 'personal');
   const ok = () => {
     if (!f.name.trim()) return;
-    if (project) updateProject(project.id, { name: f.name.trim(), emoji: f.emoji, description: f.description });
+    if (project) updateProject(project.id, { name: f.name.trim(), emoji: f.emoji, description: f.description, area });
     else {
-      const p = addProject({ name: f.name.trim(), emoji: f.emoji, description: f.description });
+      const p = addProject({ name: f.name.trim(), emoji: f.emoji, description: f.description, area });
       ui.go({ view: 'project', id: p.id });
     }
     onClose();
@@ -491,6 +602,16 @@ export function ProjectEdit({ project, onClose }) {
           <input className="field" autoFocus placeholder="Название" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} />
         </div>
         <input className="field" placeholder="Цель или описание (необязательно)" value={f.description} onChange={(e) => setF({ ...f, description: e.target.value })} />
+        <div className="seg area-seg">
+          {[
+            ['personal', 'Личное: утро и вечер'],
+            ['work', 'Работа: 10–18 будни'],
+          ].map(([k, l]) => (
+            <button key={k} className={area === k ? 'on' : ''} onClick={() => setF({ ...f, area: k })}>
+              {l}
+            </button>
+          ))}
+        </div>
         <div className="emoji-grid">
           {EMOJIS.map((e) => (
             <button key={e} className={f.emoji === e ? 'on' : ''} onClick={() => setF({ ...f, emoji: e })}>
@@ -627,6 +748,7 @@ export function TaskDetail({ id, onClose }) {
           className="icon-btn"
           onClick={(e) =>
             ui.menu(e.currentTarget, [
+              { icon: 'clock', label: 'Подобрать время', onClick: () => ui.suggestTime(task) },
               { icon: 'tag', label: 'Теги', onClick: () => ui.openTags(task.tags, (tags) => up({ tags })) },
               { icon: 'noProject', label: 'Перенести в…', onClick: () => ui.openProjectPicker(task.projectId, (projectId, sectionId) => up({ projectId, sectionId })) },
               { divider: true },
@@ -682,6 +804,37 @@ export function TaskDetail({ id, onClose }) {
             <Icon name="plus" size={18} />
             <input placeholder="Добавить подзадачу" value={newSub} onChange={(e) => setNewSub(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addSub()} onBlur={addSub} />
           </div>
+        </div>
+        <div className="plan-row">
+          <button
+            className="chip ghost"
+            onClick={(e) => ui.menu(e.currentTarget, DURATIONS.map((m) => ({ icon: 'timer', label: durLabel(m), active: (task.duration || DEFAULT_DURATION) === m, onClick: () => up({ duration: m }) })))}
+          >
+            <Icon name="timer" size={14} /> {durLabel(task.duration || DEFAULT_DURATION)}
+          </button>
+          {task.deadline ? (
+            <span className="chip accent">
+              <span onClick={() => ui.openDate({ date: task.deadline }, (v) => up({ deadline: v.date }))}>Дедлайн: {relLabel(task.deadline).toLowerCase()}</span>
+              <button onClick={() => up({ deadline: null })}>
+                <Icon name="close" size={14} />
+              </button>
+            </span>
+          ) : (
+            <button className="chip ghost" onClick={() => ui.openDate({ date: null }, (v) => up({ deadline: v.date }))}>
+              <Icon name="flag" size={14} /> Дедлайн
+            </button>
+          )}
+          <button
+            className={'chip ' + (task.repeat ? 'accent' : 'ghost')}
+            onClick={(e) => ui.menu(e.currentTarget, REPEATS.map(([k, l]) => ({ icon: 'reset', label: l, active: (task.repeat || null) === k, onClick: () => up({ repeat: k, date: task.date || (k ? todayKey() : null) }) })))}
+          >
+            <Icon name="reset" size={14} /> {task.repeat ? REPEATS.find((r) => r[0] === task.repeat)[1] : 'Повтор'}
+          </button>
+          {!task.time && !task.done && (
+            <button className="chip ghost" onClick={() => ui.suggestTime(task)}>
+              <Icon name="clock" size={14} /> Подобрать время
+            </button>
+          )}
         </div>
         {task.time && task.remind !== null && (
           <div className="detail-info">

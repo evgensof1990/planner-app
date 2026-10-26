@@ -54,3 +54,24 @@ test('labels', () => {
   assert.equal(slotLabel({ date: '2026-10-26', time: '18:00', duration: 60 }, now), 'Сегодня 18:00–19:00');
   assert.equal(slotLabel({ date: '2026-10-29', time: '09:00', duration: 30 }, now), 'Чт, 29 окт 09:00–09:30');
 });
+
+test('repeat dates', async () => {
+  const { nextRepeat } = await import('../src/date.js');
+  assert.equal(nextRepeat('2026-11-30', 'monthly'), '2026-12-31');
+  assert.equal(nextRepeat('2027-01-31', 'monthly'), '2027-02-28');
+  assert.equal(nextRepeat('2026-11-05', 'monthly'), '2026-12-05');
+  assert.equal(nextRepeat('2026-10-30', 'weekdays'), '2026-11-02');
+  assert.equal(nextRepeat('2026-10-30', 'weekly'), '2026-11-06');
+});
+
+test('goal plan ids are unique and sections exist', async () => {
+  const { goalsPlan } = await import('../src/goalsplan.js');
+  const p = goalsPlan();
+  const ids = [...p.projects, ...p.tasks, ...p.habits].map((x) => x.id);
+  assert.equal(new Set(ids).size, ids.length);
+  for (const t of p.tasks) {
+    const pr = p.projects.find((x) => x.id === t.projectId);
+    assert.ok(pr);
+    if (t.sectionId) assert.ok(pr.sections.some((s) => s.id === t.sectionId));
+  }
+});

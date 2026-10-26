@@ -6,6 +6,7 @@ import { todayKey } from './date.js';
 import { isNative } from './notify.js';
 import { convertTickTick } from './ticktick.js';
 import { SIDE_ITEMS, TOOL_ITEMS, THEMES, ACCENTS, DEFAULT_ACCENT, isHidden } from './layout.js';
+import { goalsPlan } from './goalsplan.js';
 import { refreshCalendar, calendarInfo, dropCalendar, onCalendarsChange } from './ical.js';
 
 const TABS = [
@@ -320,7 +321,7 @@ function Pomo() {
 
 /* ---------- Данные: импорт и резервная копия ---------- */
 function DataPane({ onClose }) {
-  const { data, importData, importTickTick } = useStore();
+  const { data, importData, importTickTick, importGoals } = useStore();
   const ui = useUi();
   const exportJson = () => JSON.stringify(data, null, 1);
   const download = () => {
@@ -396,6 +397,23 @@ function DataPane({ onClose }) {
   };
   return (
     <>
+      <div className="lbl">План «Путь к Точке Б»</div>
+      <div className="hint">Четыре проекта (бизнес, финансы, дом и семья, здоровье и развитие) с целями по кварталам до конца 2027 года, первые шаги на неделю 2–8 ноября, ежемесячные финансовые задачи и обзор недели по пятницам. Повторный импорт добавит только то, чего нет.</div>
+      <button
+        className="btn wide"
+        onClick={() => {
+          const plan = goalsPlan();
+          const del = data.deletedIds || {};
+          const has = new Set([...data.projects, ...data.tasks, ...data.habits].map((x) => x.id));
+          const missing = [...plan.projects, ...plan.tasks, ...plan.habits].filter((x) => !has.has(x.id) && !del[x.id]).length;
+          if (!missing) return ui.toast('План уже импортирован');
+          importGoals();
+          ui.toast(`Добавлено из плана: ${missing}`);
+          onClose();
+        }}
+      >
+        <Icon name="layers" size={18} /> Импортировать цели и шаги
+      </button>
       <div className="lbl">Перенос из TickTick</div>
       <div className="hint">В TickTick: Настройки → Аккаунт → «Создать резервную копию». Выберите скачанный CSV-файл.</div>
       <button className="btn wide" onClick={fromTickTick}>
