@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { TopBar, IconBtn, useUi } from './components.jsx';
 import { useStore, alive, PRIORITY_COLORS } from './store.jsx';
+import { layoutDay } from './daylayout.js';
 import { calendarItems, onCalendarsChange, refreshStale } from './ical.js';
 import { MONTHS, WD, WD_MON, addDays, monthGrid, parseKey, todayKey, pad, weekStart } from './date.js';
 
@@ -143,30 +144,32 @@ export function CalendarView({ day, setDay }) {
                     <i key={h} className="cal-line" style={{ top: h * HOUR }} />
                   ))}
                   {k === t && <div className="cal-now" style={{ top: ((now.getHours() * 60 + now.getMinutes()) / 60) * HOUR }} />}
-                  {tasks
-                    .filter((x) => x.date === k && x.time)
-                    .map((x) => {
-                      const [hh, mm] = x.time.split(':').map(Number);
-                      return (
-                        <button
-                          key={x.id}
-                          className={'cal-ev' + (x.done ? ' done' : '')}
-                          style={{
-                            top: ((hh * 60 + mm) / 60) * HOUR + 1,
-                            height: x.ext ? Math.max(HOUR / 2, (x.dur / 60) * HOUR) - 3 : HOUR - 3,
-                            borderLeftColor: x.ext ? x.color : PRIORITY_COLORS[x.priority] || 'var(--accent)',
-                            ...(x.ext ? { background: x.color + '30' } : {}),
-                          }}
-                          onClick={() => open(x)}
-                          onContextMenu={(e) => {
-                            e.preventDefault();
-                            if (!x.ext) toggleTask(x.id);
-                          }}
-                        >
-                          <b>{x.time}</b> {x.title}
-                        </button>
-                      );
-                    })}
+                  {layoutDay(tasks.filter((x) => x.date === k && x.time)).map(({ x, start, end, col, cols }) => {
+                    const height = ((end - start) / 60) * HOUR - 2;
+                    return (
+                      <button
+                        key={x.id}
+                        className={'cal-ev' + (x.done ? ' done' : '') + (height < 34 ? ' short' : '')}
+                        style={{
+                          top: (start / 60) * HOUR + 1,
+                          height,
+                          left: `calc(${(col / cols) * 100}% + 2px)`,
+                          width: `calc(${100 / cols}% - 4px)`,
+                          right: 'auto',
+                          borderLeftColor: x.ext ? x.color : PRIORITY_COLORS[x.priority] || 'var(--accent)',
+                          ...(x.ext ? { background: x.color + '30' } : {}),
+                        }}
+                        title={`${x.time} ${x.title}`}
+                        onClick={() => open(x)}
+                        onContextMenu={(e) => {
+                          e.preventDefault();
+                          if (!x.ext) toggleTask(x.id);
+                        }}
+                      >
+                        <b>{x.time}</b> {x.title}
+                      </button>
+                    );
+                  })}
                 </div>
               ))}
             </div>

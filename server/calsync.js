@@ -5,8 +5,10 @@
 import { createHash } from 'node:crypto';
 import { parseEvents, expandEvents, escapeText } from '../src/icalparse.js';
 import { keyOf, pad } from '../src/date.js';
+import { areaOf, DEFAULT_DURATION } from '../src/scheduler.js';
 
-export const DEFAULT_DURATION = 30;
+export { areaOf, DEFAULT_DURATION };
+
 const PAST_DAYS = 7;
 const FUTURE_DAYS = 60;
 
@@ -15,13 +17,6 @@ export const taskStart = (t) => {
   const [hh, mm] = t.time.split(':').map(Number);
   return new Date(y, m - 1, d, hh, mm);
 };
-
-export function areaOf(task, projects) {
-  if (task.area) return task.area;
-  const p = projects.find((x) => x.id === task.projectId);
-  if (p?.area) return p.area;
-  return p && /работ/i.test(p.name) ? 'work' : 'personal';
-}
 
 const utc = (d) => d.toISOString().replace(/[-:]/g, '').replace(/\.\d+/, '');
 
