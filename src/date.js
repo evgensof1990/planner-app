@@ -70,3 +70,26 @@ export const fmtDuration = (sec) => {
   const h = Math.floor(m / 60);
   return `${h}ч ${m % 60}м`;
 };
+
+// Next date of a repeating task; a month-end date stays at the month end
+export const REPEATS = [
+  [null, 'Не повторять'],
+  ['daily', 'Каждый день'],
+  ['weekdays', 'По будням'],
+  ['weekly', 'Каждую неделю'],
+  ['monthly', 'Каждый месяц'],
+  ['yearly', 'Каждый год'],
+];
+export function nextRepeat(k, repeat) {
+  const d = parseKey(k);
+  if (repeat === 'daily') return addDays(k, 1);
+  if (repeat === 'weekly') return addDays(k, 7);
+  if (repeat === 'weekdays') return addDays(k, d.getDay() === 5 ? 3 : d.getDay() === 6 ? 2 : 1);
+  if (repeat === 'monthly' || repeat === 'yearly') {
+    const months = repeat === 'monthly' ? 1 : 12;
+    const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate() === d.getDate();
+    const last = new Date(d.getFullYear(), d.getMonth() + months + 1, 0).getDate();
+    return keyOf(new Date(d.getFullYear(), d.getMonth() + months, lastDay ? last : Math.min(d.getDate(), last)));
+  }
+  return null;
+}

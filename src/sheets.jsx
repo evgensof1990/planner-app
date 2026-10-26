@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import Icon from './icons.jsx';
 import { Sheet, SheetHeader, Checkbox, useUi, DateChip } from './components.jsx';
 import { useStore, PRIORITY_COLORS, PRIORITY_NAMES } from './store.jsx';
-import { MONTHS, WD_MON, addDays, monthGrid, parseKey, pad, relLabel, todayKey } from './date.js';
+import { MONTHS, WD_MON, REPEATS, addDays, monthGrid, parseKey, pad, relLabel, todayKey } from './date.js';
 import { parseQuick } from './quickparse.js';
 import { suggestSlots, slotLabel, DEFAULT_DURATION } from './scheduler.js';
 import { busyEvents } from './ical.js';
@@ -824,6 +824,12 @@ export function TaskDetail({ id, onClose }) {
               <Icon name="flag" size={14} /> Дедлайн
             </button>
           )}
+          <button
+            className={'chip ' + (task.repeat ? 'accent' : 'ghost')}
+            onClick={(e) => ui.menu(e.currentTarget, REPEATS.map(([k, l]) => ({ icon: 'reset', label: l, active: (task.repeat || null) === k, onClick: () => up({ repeat: k, date: task.date || (k ? todayKey() : null) }) })))}
+          >
+            <Icon name="reset" size={14} /> {task.repeat ? REPEATS.find((r) => r[0] === task.repeat)[1] : 'Повтор'}
+          </button>
           {!task.time && !task.done && (
             <button className="chip ghost" onClick={() => ui.suggestTime(task)}>
               <Icon name="clock" size={14} /> Подобрать время

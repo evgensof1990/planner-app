@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { addDays, todayKey } from './date.js';
+import { addDays, todayKey, nextRepeat } from './date.js';
+import { goalsPlan } from './goalsplan.js';
 import { stamp, merge, canon, getCfg, setCfg, readGist, writeGist, findGist, createGist, isServer, serverRead, serverSync } from './sync.js';
 
 const KEY = 'planner-data-v1';
@@ -126,6 +127,12 @@ export function StoreProvider({ children }) {
           t.doneAt = t.done ? Date.now() : null;
           if (t.done) {
             justDone.add(t.id);
+            // a repeating task leaves a fresh copy on its next date
+            const next = t.repeat && t.date && nextRepeat(t.date, t.repeat);
+            if (next && !t.parentId) {
+              n.tasks.push(mkTask({ ...t, id: uid(), date: next, done: false, doneAt: null, archived: false, createdAt: Date.now(), order: Date.now() }));
+              t.repeat = null;
+            }
             if (!t.parentId && n.settings.autoArchive !== false) t.archived = true;
           } else {
             justDone.delete(t.id);
@@ -232,6 +239,20 @@ export function StoreProvider({ children }) {
             n.tags.push(...r.tags);
           }
         }),
+      importGoals: () => {
+        const plan = goalsPlan();
+        mut((n) => {
+          const del = n.deletedIds || {};
+          const add = (list, items) =>
+            items.forEach((x) => {
+              if (del[x.id] || list.some((y) => y.id === x.id)) return;
+              list.push(x);
+            });
+          add(n.projects, plan.projects);
+          add(n.tasks, plan.tasks.map((t) => mkTask({ ...t, createdAt: Date.now() })));
+          add(n.habits, plan.habits);
+        });
+      },
       importData: (d) => setData((cur) => stamp(cur, JSON.parse(JSON.stringify({ ...seed(), ...d })))),
     };
   }, []);
