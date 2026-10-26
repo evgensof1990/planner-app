@@ -33,7 +33,10 @@ export function SettingsSheet({ onClose, tab: initial }) {
       <SheetHeader title="Настройки" onClose={onClose} />
       <div className="stabs">
         {TABS.map(([k, l, ic]) => (
-          <button key={k} className={'stab' + (tab === k ? ' on' : '')} onClick={() => setTab(k)}>
+          <button key={k} className={'stab' + (tab === k ? ' on' : '')} onClick={(e) => {
+              setTab(k);
+              e.currentTarget.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
+            }}>
             <Icon name={ic} size={26} stroke={1.5} />
             <span>{l}</span>
           </button>
