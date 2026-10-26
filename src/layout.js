@@ -5,6 +5,8 @@ export const SIDE_ITEMS = [
   ['plans', 'Планы', 'calendar'],
   ['calendar', 'Календарь', 'grid'],
   ['habits', 'Привычки', 'habit'],
+  ['goals', 'Цели', 'target'],
+  ['review', 'Обзор недели', 'review'],
   ['filter', 'Фильтр', 'filter'],
   ['tags', 'Теги', 'tag'],
   ['noproject', 'Без проекта', 'noProject'],

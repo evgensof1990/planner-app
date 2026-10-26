@@ -55,6 +55,7 @@ export function ListView({ route }) {
   const done = data.settings.showCompleted ? list.filter((x) => !pending(x)) : [];
   const overdue = route.view === 'today' ? open.filter((x) => x.date < t) : [];
   const rest = route.view === 'today' ? open.filter((x) => x.date >= t) : open;
+  const loose = route.view === 'today' ? open.filter((x) => !x.time && !x.parentId) : [];
   return (
     <div className="view">
       <TopBar title={title} left={<MenuBtn />}>
@@ -74,6 +75,13 @@ export function ListView({ route }) {
         />
       </TopBar>
       <div className="scroll">
+        {loose.length > 0 && (
+          <button className="plan-bar" onClick={() => ui.planDays([t])}>
+            <Icon name="clock" size={18} />
+            <span>Без времени: {loose.length}</span>
+            <b>Разложить по окнам</b>
+          </button>
+        )}
         {open.length === 0 && done.length === 0 && <Empty text={route.view === 'today' ? 'На сегодня задач нет. Отдыхайте!' : 'Здесь пока пусто'} />}
         {overdue.length > 0 && (
           <Group title={<span className="red">Просроченные задачи</span>} count={overdue.length}>

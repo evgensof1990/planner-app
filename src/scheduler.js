@@ -105,3 +105,19 @@ export function slotLabel({ date, time, duration }, now = new Date()) {
   const mon = ['янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'][d.getMonth()];
   return `${wd}, ${d.getDate()} ${mon} ${range}`;
 }
+
+// Places several tasks one after another, each taking the earliest free slot so the next
+// one sees it as busy. With `day`, only slots on that day count. Returns [{task, slot|null}].
+export function planBatch(list, { tasks = [], day = null, ...opts } = {}) {
+  const placed = [];
+  const out = [];
+  const order = [...list].sort((a, b) => (b.priority || 0) - (a.priority || 0) || (a.deadline || '9').localeCompare(b.deadline || '9'));
+  for (const task of order) {
+    const others = [...tasks.filter((t) => t.id !== task.id), ...placed];
+    const [slot] = suggestSlots(day ? { ...task, date: day } : task, { ...opts, tasks: others, count: 1 });
+    const ok = slot && (!day || slot.date === day) ? slot : null;
+    if (ok) placed.push({ id: task.id, date: ok.date, time: ok.time, duration: ok.duration });
+    out.push({ task, slot: ok });
+  }
+  return out;
+}

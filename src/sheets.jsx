@@ -6,6 +6,7 @@ import { MONTHS, WD_MON, REPEATS, addDays, monthGrid, parseKey, pad, relLabel, t
 import { parseQuick } from './quickparse.js';
 import { suggestSlots, slotLabel, DEFAULT_DURATION } from './scheduler.js';
 import { busyEvents } from './ical.js';
+import { voiceAvailable, startRecording, recognize } from './voice.js';
 
 export const REMIND_OPTIONS = [
   [null, 'Нет'],
@@ -32,6 +33,36 @@ export function QuickAdd({ defaults = {}, onClose }) {
   useEffect(() => {
     setTimeout(() => inp.current?.focus(), 60);
   }, []);
+  const [rec, setRec] = useState(null); // {stop} while recording, 'busy' while recognising
+  const recRef = useRef(null);
+  const stopVoice = async () => {
+    const r = recRef.current;
+    if (!r || r === 'busy') return;
+    recRef.current = 'busy';
+    setRec('busy');
+    try {
+      const text = await recognize(await r.stop());
+      if (text) setTitle((t) => (t.trim() ? t.trim() + ' ' : '') + text);
+      else ui.toast('Ничего не расслышал');
+    } catch (e) {
+      ui.toast(e.message);
+    }
+    recRef.current = null;
+    setRec(null);
+    inp.current?.focus();
+  };
+  const toggleVoice = async () => {
+    if (recRef.current) return stopVoice();
+    try {
+      const r = await startRecording();
+      recRef.current = r;
+      setRec(r);
+      setTimeout(() => recRef.current === r && stopVoice(), r.maxMs);
+    } catch (e) {
+      ui.toast('Нет доступа к микрофону');
+    }
+  };
+  useEffect(() => () => recRef.current?.stop?.(), []);
   // what the typed line says: "отчёт до пятницы 2ч #работа"
   const q = parseQuick(title, { projects: data.projects, tags: data.tags });
   const eff = {
@@ -77,6 +108,11 @@ export function QuickAdd({ defaults = {}, onClose }) {
           onChange={(e) => setTitle(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && submit()}
         />
+        {voiceAvailable() && (
+          <button className={'icon-btn mic' + (rec ? ' on' : '')} title="Сказать голосом" onClick={toggleVoice} disabled={rec === 'busy'}>
+            <Icon name="mic" size={20} />
+          </button>
+        )}
         <button
           className="icon-btn"
           title="Открыть полностью"

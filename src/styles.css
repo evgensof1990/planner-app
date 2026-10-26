@@ -2559,3 +2559,284 @@ textarea {
   color: var(--text3);
   font-size: 11px;
 }
+
+.icon-btn.mic.on {
+  color: #fff;
+  background: var(--red);
+  border-radius: 50%;
+  animation: mic-pulse 1.2s ease-in-out infinite;
+}
+@keyframes mic-pulse {
+  50% {
+    box-shadow: 0 0 0 6px rgba(240, 87, 79, 0.25);
+  }
+}
+
+.pair-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 14px;
+  margin: 6px 0;
+  border-radius: 12px;
+  background: var(--surface2);
+}
+.pair-box b {
+  font-size: 22px;
+  letter-spacing: 1px;
+  font-family: ui-monospace, Menlo, monospace;
+}
+
+/* plan bar on Today */
+.plan-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: calc(100% - 24px);
+  margin: 4px 12px 8px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: var(--accent-dim);
+  color: var(--text);
+  font-size: 14px;
+}
+.plan-bar svg,
+.plan-bar b {
+  color: var(--accent);
+}
+.plan-bar b {
+  margin-left: auto;
+  font-weight: 600;
+}
+.plan-list .row-btn span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 0;
+}
+.plan-list small {
+  color: var(--text2);
+}
+
+/* goals */
+.goals-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 4px 16px 10px;
+  color: var(--text2);
+  font-size: 13px;
+}
+.goal-card {
+  margin: 0 12px 12px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: var(--surface2);
+  border-left: 3px solid var(--line2);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.goal-card.g-ok {
+  border-left-color: #4cc764;
+}
+.goal-card.g-warn {
+  border-left-color: #f5b83d;
+}
+.goal-card.g-red {
+  border-left-color: var(--red);
+}
+.goal-card > .chip {
+  align-self: flex-start;
+}
+.goal-top {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  cursor: pointer;
+}
+.goal-name {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.goal-name span {
+  color: var(--text2);
+  font-size: 13px;
+  line-height: 1.35;
+}
+.goal-week {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.goal-flag {
+  font-size: 13px;
+}
+.goal-flag.g-ok {
+  color: #4cc764;
+}
+.goal-flag.g-warn {
+  color: #f5b83d;
+}
+.goal-flag.g-red {
+  color: var(--red);
+}
+.goal-q-title {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.goal-q-title span {
+  color: var(--text2);
+  font-weight: 400;
+}
+.goal-bar {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--surface3);
+  overflow: hidden;
+  margin-bottom: 6px;
+}
+.goal-bar i {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+}
+.goal-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 34px;
+  font-size: 14px;
+  cursor: pointer;
+}
+.goal-item.done span {
+  color: var(--text3);
+  text-decoration: line-through;
+}
+
+/* weekly review */
+.rv-steps {
+  display: flex;
+  gap: 4px;
+  padding: 0 12px 8px;
+  overflow-x: auto;
+}
+.rv-steps button {
+  flex: 1;
+  min-width: 64px;
+  height: 30px;
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--text2);
+  background: var(--surface2);
+}
+.rv-steps button.past {
+  color: var(--text);
+}
+.rv-steps button.on {
+  background: var(--accent);
+  color: #fff;
+}
+.review {
+  padding: 0 16px;
+}
+.review .goal-card {
+  margin: 0 0 12px;
+}
+.rv-big {
+  font-size: 44px;
+  font-weight: 700;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 8px 0;
+}
+.rv-big small {
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--text2);
+}
+.rv-line {
+  padding: 6px 0;
+  font-size: 14px;
+  border-bottom: 1px solid var(--line);
+  cursor: pointer;
+}
+.rv-line.done {
+  color: var(--text2);
+}
+.rv-line small,
+.muted {
+  color: var(--text3);
+}
+.rv-ok {
+  padding: 30px 0;
+  text-align: center;
+  color: var(--text2);
+}
+.rv-tail {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.rv-tail > div:first-child {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  cursor: pointer;
+}
+.rv-tail small {
+  color: var(--text2);
+}
+.rv-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.rv-lights {
+  display: flex;
+  gap: 8px;
+  margin: 12px 0;
+}
+.rv-lights button {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 12px 6px;
+  border-radius: 12px;
+  background: var(--surface2);
+  font-size: 13px;
+  color: var(--text2);
+}
+.rv-lights button span {
+  font-size: 26px;
+}
+.rv-lights button.on {
+  outline: 2px solid var(--accent);
+  color: var(--text);
+}
+.rv-note {
+  width: 100%;
+  resize: vertical;
+}
+.rv-day .lbl {
+  margin-top: 12px;
+}
+.rv-nav {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  padding: 18px 0;
+}

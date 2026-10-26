@@ -7,6 +7,7 @@ import { isNative } from './notify.js';
 import { convertTickTick } from './ticktick.js';
 import { SIDE_ITEMS, TOOL_ITEMS, THEMES, ACCENTS, DEFAULT_ACCENT, isHidden } from './layout.js';
 import { goalsPlan } from './goalsplan.js';
+import { getCfg, api } from './sync.js';
 import { refreshCalendar, calendarInfo, dropCalendar, onCalendarsChange } from './ical.js';
 
 const TABS = [
@@ -552,7 +553,82 @@ function SyncSection() {
               <Icon name="close" size={18} /> Отключить
             </button>
           </div>
+          {sync.kind === 'server' && <TelegramSection />}
         </>
+      )}
+    </>
+  );
+}
+
+function TelegramSection() {
+  const ui = useUi();
+  const [st, setSt] = useState(null);
+  const [pair, setPair] = useState(null);
+  const [err, setErr] = useState(null);
+  const load = () =>
+    api(getCfg(), '/api/telegram/status')
+      .then(setSt)
+      .catch((e) => setErr(e.message));
+  useEffect(() => {
+    load();
+  }, []);
+  // while a code is shown, watch for the bot to get bound
+  useEffect(() => {
+    if (!pair) return;
+    const id = setInterval(load, 4000);
+    return () => clearInterval(id);
+  }, [pair]);
+  useEffect(() => {
+    if (pair && st?.bound) {
+      setPair(null);
+      ui.toast('Telegram привязан');
+    }
+  }, [st]);
+  const startPair = async () => {
+    try {
+      setPair(await api(getCfg(), '/api/telegram/pair', { method: 'POST' }));
+    } catch (e) {
+      setErr(e.message);
+    }
+  };
+  const seen = st?.relaySeenAt ? new Date(st.relaySeenAt).toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : null;
+  return (
+    <>
+      <div className="lbl">Telegram и голос</div>
+      {err && <div className="hint red">{err}</div>}
+      {st && (
+        <div className="hint">
+          {!st.relay
+            ? 'Бот ещё не настроен на сервере: нужен шаг с Cloudflare из инструкции.'
+            : st.bound
+              ? `Бот привязан${seen ? `, последняя связь ${seen}` : ''}.`
+              : 'Бот настроен, осталось привязать ваш чат.'}{' '}
+          {st.voice ? 'Голосовой ввод включён.' : 'Голосовой ввод выключен: на сервере нет ключа SpeechKit.'}
+        </div>
+      )}
+      {pair ? (
+        <div className="pair-box">
+          <div>Отправьте вашему боту:</div>
+          <b>/start {pair.code}</b>
+          <button
+            className="btn"
+            onClick={() =>
+              navigator.clipboard
+                ?.writeText('/start ' + pair.code)
+                .then(() => ui.toast('Скопировано'))
+                .catch(() => {})
+            }
+          >
+            <Icon name="copy" size={18} /> Скопировать
+          </button>
+          <div className="hint small">Код действует 15 минут.</div>
+        </div>
+      ) : (
+        st?.relay && (
+          <button className="btn wide" onClick={startPair}>
+            <Icon name="telegram" size={18} /> {st.bound ? 'Привязать другой чат' : 'Привязать Telegram'}
+          </button>
+        )
       )}
     </>
   );

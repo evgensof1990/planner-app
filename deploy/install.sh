@@ -26,7 +26,7 @@ mkdir -p "$APP_DIR" /var/lib/planovik
 rm -rf "$APP_DIR/server" "$APP_DIR/src"
 cp -r "$SRC_DIR/server" "$APP_DIR/server"
 mkdir -p "$APP_DIR/src"
-cp "$SRC_DIR/src/sync.js" "$SRC_DIR/src/icalparse.js" "$SRC_DIR/src/date.js" "$SRC_DIR/src/scheduler.js" "$APP_DIR/src/"
+cp "$SRC_DIR/src/sync.js" "$SRC_DIR/src/icalparse.js" "$SRC_DIR/src/date.js" "$SRC_DIR/src/scheduler.js" "$SRC_DIR/src/quickparse.js" "$APP_DIR/src/"
 echo '{"type":"module"}' > "$APP_DIR/package.json"
 chown -R planovik:planovik /var/lib/planovik
 chmod 700 /var/lib/planovik

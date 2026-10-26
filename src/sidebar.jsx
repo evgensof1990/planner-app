@@ -5,6 +5,14 @@ import { useStore, alive } from './store.jsx';
 import { todayKey } from './date.js';
 import { isHidden } from './layout.js';
 
+// Monday of the current week, the key of its review
+const reviewWeek = () => {
+  const d = new Date();
+  d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+  return todayKeyOf(d);
+};
+const todayKeyOf = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
 export function Sidebar({ route }) {
   const { data, deleteTag, updateProject, sync } = useStore();
   const ui = useUi();
@@ -55,6 +63,8 @@ export function Sidebar({ route }) {
         {show('plans') && <Item icon="calendar" label="Планы" view="plans" />}
         {show('calendar') && <Item icon="grid" label="Календарь" view="calendar" />}
         {show('habits') && <Item icon="habit" label="Привычки" view="habits" />}
+        {show('goals') && <Item icon="target" label="Цели" view="goals" />}
+        {show('review') && <Item icon="review" label="Обзор недели" view="review" count={new Date().getDay() === 5 && !data.settings.reviews?.[reviewWeek()] ? 1 : 0} />}
         <div className="nav-section" onClick={() => setProjOpen(!projOpen)}>
           <Icon name="list" size={21} />
           <span className="nav-label">Мои проекты и списки</span>
