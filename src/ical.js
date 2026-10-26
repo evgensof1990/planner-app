@@ -93,7 +93,7 @@ export async function refreshServerEvents() {
         .filter((e) => !e.own)
         .map((e) => {
           const s = new Date(e.start);
-          return { title: e.title, date: keyOf(s), time: e.allDay ? null : `${pad(s.getHours())}:${pad(s.getMinutes())}`, dur: e.allDay ? 0 : Math.max(15, Math.round((e.end - e.start) / 6e4)), color: e.color, calName: e.calName };
+          return { title: e.title, busy: e.busy, date: keyOf(s), time: e.allDay ? null : `${pad(s.getHours())}:${pad(s.getMinutes())}`, dur: e.allDay ? 0 : Math.max(15, Math.round((e.end - e.start) / 6e4)), color: e.color, calName: e.calName };
         }),
     };
   } catch (e) {
@@ -111,4 +111,16 @@ export function calendarItems(calendars = []) {
   }
   if (isServer(getCfg())) (cache[SERVER]?.events || []).forEach((e, i) => out.push({ ...e, id: `ext-srv-${i}`, ext: true, color: e.color || '#8a8f98', done: false, priority: 0 }));
   return out;
+}
+
+// Calendar events as busy intervals for the scheduler: {start, end, allDay, busy} in ms
+export function busyEvents(calendars = []) {
+  return calendarItems(calendars)
+    .filter((e) => e.time)
+    .map((e) => {
+      const [y, m, d] = e.date.split('-').map(Number);
+      const [hh, mm] = e.time.split(':').map(Number);
+      const start = new Date(y, m - 1, d, hh, mm).getTime();
+      return { start, end: start + (e.dur || 30) * 6e4, allDay: false, busy: e.busy };
+    });
 }
