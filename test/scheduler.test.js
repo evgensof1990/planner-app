@@ -75,3 +75,17 @@ test('goal plan ids are unique and sections exist', async () => {
     if (t.sectionId) assert.ok(pr.sections.some((s) => s.id === t.sectionId));
   }
 });
+
+test('a batch places tasks one after another without clashes', async () => {
+  const { planBatch } = await import('../src/scheduler.js');
+  const list = [
+    { id: 'a', title: 'A', duration: 60, priority: 1 },
+    { id: 'b', title: 'B', duration: 60, priority: 3 },
+    { id: 'c', title: 'C', duration: 120 },
+  ];
+  const r = planBatch(list, { now, day: '2026-10-26' });
+  assert.deepEqual(
+    r.map((x) => [x.task.id, x.slot && x.slot.time]),
+    [['b', '18:00'], ['a', '19:00'], ['c', null]]
+  );
+});

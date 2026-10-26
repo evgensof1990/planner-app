@@ -7,6 +7,7 @@ import { todayKey, setWeekStart } from './date.js';
 import { QuickAdd, DateSheet, ProjectPicker, TagPicker, TaskDetail, PromptSheet, ProjectEdit, HabitEdit, ConfirmSheet, SlotSheet } from './sheets.jsx';
 import { ListView, PlansView, ProjectView, SearchView, TrashView, ArchiveView, FilterView, NotificationsView } from './views.jsx';
 import { HabitsView } from './habits.jsx';
+import { GoalsView, ReviewView, PlanSheet } from './goals.jsx';
 import { CalendarView } from './calendar.jsx';
 import { PomodoroView, PomoStatsView, pomoEndReminder } from './pomodoro.jsx';
 import { Sidebar } from './sidebar.jsx';
@@ -15,7 +16,7 @@ import { TOOL_ITEMS, TOOL_SHORT, THEMES, DEFAULT_ACCENT, isHidden } from './layo
 import { isNative, syncNotifications, taskReminders, ensurePermission } from './notify.js';
 
 const HOME = { view: 'today' };
-const NO_FAB = new Set(['pomo', 'pomoStats', 'search', 'trash', 'archive', 'habits']);
+const NO_FAB = new Set(['pomo', 'pomoStats', 'search', 'trash', 'archive', 'habits', 'review']);
 
 export default function App() {
   const store = useStore();
@@ -98,6 +99,7 @@ export default function App() {
       quickAdd: (defaults) => push('quick', { defaults }),
       openTask: (id) => push('task', { id }),
       suggestTime: (task) => push('slots', { task }),
+      planDays: (days) => push('plan', { days }),
       openDate: (value, onSave, timeFirst) => push('date', { value, onSave, timeFirst }),
       openProjectPicker: (value, onPick) => push('project', { value, onPick }),
       openTags: (value, onPick) => push('tags', { value, onPick }),
@@ -208,6 +210,12 @@ export default function App() {
     case 'habits':
       view = <HabitsView />;
       break;
+    case 'goals':
+      view = <GoalsView />;
+      break;
+    case 'review':
+      view = <ReviewView />;
+      break;
     case 'calendar':
       view = <CalendarView day={calDay} setDay={setCalDay} />;
       break;
@@ -264,6 +272,8 @@ export default function App() {
         return <ConfirmSheet {...p} />;
       case 'slots':
         return <SlotSheet {...p} />;
+      case 'plan':
+        return <PlanSheet {...p} />;
       case 'projectEdit':
         return <ProjectEdit {...p} />;
       case 'habitEdit':

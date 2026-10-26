@@ -35,3 +35,19 @@ cd android && ./gradlew assembleRelease
 - События остальных календарей (включая повторяющиеся) приложение показывает как занятость.
 
 Установка на сервере с nginx: `git clone` репозитория, затем `sudo bash deploy/install.sh`. Скрипт спросит логин и пароль приложения Яндекса и выдаст ключ доступа для приложения. Тесты: `npm test`.
+
+## Telegram-бот и голос
+
+Сервер не ходит в Telegram сам: между ними стоит Cloudflare Worker (`deploy/telegram-worker.js`).
+Он получает сообщения бота, пересылает их на сервер и выполняет ответы, а раз в минуту забирает
+с сервера утренний план и напоминание об обзоре недели.
+
+1. На сервере: `sudo bash deploy/setup-telegram.sh`. Скрипт добавит `TG_RELAY_SECRET` в `/etc/planovik.env`
+   и спросит API-ключ SpeechKit для распознавания голоса (можно пропустить).
+2. В Cloudflare: Workers → Create → вставить код `deploy/telegram-worker.js` → Deploy.
+   Переменные: `BOT_TOKEN` (от @BotFather), `RELAY_SECRET` (из шага 1), `SERVER_URL=https://plan.myrenthub.ru`.
+   Триггер Cron `* * * * *`.
+3. Открыть `https://<воркер>.workers.dev/setup?secret=<RELAY_SECRET>`.
+4. В приложении: Настройки → Синхронизация → «Привязать Telegram» и отправить боту `/start КОД`.
+
+Переменные сервера: `TG_RELAY_SECRET`, `SPEECHKIT_API_KEY`, `DIGEST_TIME` (по умолчанию `08:30`).
