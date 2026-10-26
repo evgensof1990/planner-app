@@ -2522,3 +2522,40 @@ textarea {
     width: 840px;
   }
 }
+
+/* time suggestions */
+.slot-task {
+  text-align: center;
+  color: var(--text2);
+  padding: 0 20px 8px;
+  font-size: 14px;
+}
+.slot-dur,
+.plan-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.slot-dur {
+  justify-content: center;
+  padding: 0 12px 6px;
+}
+.plan-row {
+  margin-top: 14px;
+}
+.plan-row .chip span {
+  cursor: pointer;
+}
+.row-btn.slot.best {
+  outline: 1.5px solid var(--accent);
+}
+.slot-late {
+  color: var(--red);
+}
+.area-seg {
+  margin: 4px 0 8px;
+}
+.qa-chips small {
+  color: var(--text3);
+  font-size: 11px;
+}
