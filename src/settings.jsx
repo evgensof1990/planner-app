@@ -421,12 +421,15 @@ function DataPane({ onClose }) {
 }
 
 /* ---------- Синхронизация ---------- */
+const SERVER_URL = 'https://plan.myrenthub.ru';
 const TOKEN_URL = 'https://github.com/settings/tokens/new?scopes=gist&description=' + encodeURIComponent('Плановик синхронизация');
 
 function SyncSection() {
   const { sync } = useStore();
   const ui = useUi();
   const [token, setToken] = useState('');
+  const [url, setUrl] = useState(SERVER_URL);
+  const [key, setKey] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
   const connect = async () => {
@@ -453,12 +456,46 @@ function SyncSection() {
     }
     setBusy(false);
   };
+  const [serverErr, setServerErr] = useState(null);
+  const connectServer = async () => {
+    const u = url.trim().replace(/\/$/, '');
+    const k = key.trim();
+    setBusy(true);
+    setServerErr(null);
+    try {
+      const existing = await sync.probeServer(u, k);
+      const done = () => ui.toast('Сервер подключён');
+      if (existing) {
+        ui.confirm(
+          'На сервере уже есть данные. Заменить ими данные на этом устройстве? «Объединить» сохранит и то, и другое.',
+          () => sync.connectServer(u, k, 'replace').then(done),
+          'Заменить',
+          { label: 'Объединить', fn: () => sync.connectServer(u, k, 'merge').then(done) }
+        );
+      } else {
+        await sync.connectServer(u, k, 'merge');
+        done();
+      }
+      setKey('');
+    } catch (e) {
+      setServerErr(e.message);
+    }
+    setBusy(false);
+  };
   const time = sync.last ? new Date(sync.last).toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : null;
   return (
     <>
       <div className="lbl">Синхронизация</div>
       {sync.status === 'off' ? (
         <>
+          <div className="hint">Свой сервер: данные хранятся на вашей машине, задачи со временем попадают в Яндекс.Календарь. Адрес и ключ доступа одинаковые на всех устройствах.</div>
+          <input className="field" placeholder="Адрес сервера" value={url} onChange={(e) => setUrl(e.target.value)} autoComplete="off" spellCheck={false} />
+          <input className="field" placeholder="Ключ доступа" value={key} onChange={(e) => setKey(e.target.value)} autoComplete="off" spellCheck={false} />
+          {serverErr && <div className="hint red">{serverErr}</div>}
+          <button className="btn primary wide" disabled={busy || !url.trim() || !key.trim()} onClick={connectServer}>
+            {busy ? 'Подключаю…' : 'Подключить сервер'}
+          </button>
+          <div className="lbl">Или через GitHub</div>
           <div className="hint">
             Данные синхронизируются между телефоном и макбуком через ваш аккаунт GitHub: они хранятся в приватном gist. Нужен токен с доступом только к gist, один и тот же на всех устройствах.
           </div>
@@ -482,7 +519,7 @@ function SyncSection() {
                 : sync.status === 'error'
                   ? sync.error
                   : time
-                    ? 'Синхронизировано: ' + time
+                    ? (sync.kind === 'server' ? 'Сервер, синхронизировано: ' : 'Синхронизировано: ') + time
                     : 'Синхронизация включена'}
             </span>
           </div>

@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { addDays, todayKey } from './date.js';
-import { stamp, merge, canon, getCfg, setCfg, readGist, writeGist, findGist, createGist } from './sync.js';
+import { stamp, merge, canon, getCfg, setCfg, readGist, writeGist, findGist, createGist, isServer, serverRead, serverSync } from './sync.js';
 
 const KEY = 'planner-data-v1';
 
@@ -261,10 +261,14 @@ function useSync(data, setData) {
     running.current = true;
     setState((s) => ({ ...s, status: 'syncing' }));
     try {
-      const remote = await readGist(cfg.token, cfg.gistId);
-      const merged = merge(dataRef.current, remote);
+      let merged;
+      if (isServer(cfg)) merged = await serverSync(cfg, dataRef.current);
+      else {
+        const remote = await readGist(cfg.token, cfg.gistId);
+        merged = merge(dataRef.current, remote);
+        if (canon(merged) !== canon(remote)) await writeGist(cfg.token, cfg.gistId, merged);
+      }
       const mc = canon(merged);
-      if (mc !== canon(remote)) await writeGist(cfg.token, cfg.gistId, merged);
       synced.current = mc;
       if (mc !== canon(dataRef.current)) setData((cur) => merge(cur, merged));
       const last = Date.now();
@@ -318,12 +322,28 @@ function useSync(data, setData) {
     setState({ status: 'idle', last: null, error: null });
     setTimeout(syncNow, 300);
   };
+  // Own server: returns the server's copy so the caller can ask whether to replace or merge
+  const probeServer = async (url, key) => {
+    const remote = await serverRead({ kind: 'server', url, key });
+    return remote.tasks?.length ? remote : null;
+  };
+  const connectServer = async (url, key, mode) => {
+    const cfg = { kind: 'server', url, key, last: null };
+    if (mode === 'replace') {
+      const remote = await serverRead(cfg);
+      synced.current = canon(remote);
+      setData(remote);
+    }
+    setCfg(cfg);
+    setState({ status: 'idle', last: null, error: null });
+    setTimeout(syncNow, 300);
+  };
   const disconnect = () => {
     setCfg(null);
     synced.current = null;
     setState({ status: 'off', last: null, error: null });
   };
-  return { ...state, syncNow, probe, connect, disconnect };
+  return { ...state, kind: getCfg()?.kind || 'gist', syncNow, probe, connect, probeServer, connectServer, disconnect };
 }
 
 // ---- selectors
