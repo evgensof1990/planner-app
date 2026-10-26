@@ -5,6 +5,6 @@
   "backgroundColor": "#101010",
   "android": { "backgroundColor": "#101010" },
   "plugins": {
-    "LocalNotifications": { "iconColor": "#FF8A1F" }
+    "LocalNotifications": { "iconColor": "#FF7A00" }
   }
 }
