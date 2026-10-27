@@ -35,32 +35,38 @@ test('pairing needs the code from the app; strangers are ignored', async () => {
   assert.deepEqual(await bot.handle({ message: { chat: { id: 99 }, text: 'чужой' } }), []);
 });
 
-test('a text message becomes a task; a deadline brings slot buttons', async () => {
+const keysOf = (r) => r.params.reply_markup.inline_keyboard.flat();
+const btn = (r, re) => keysOf(r).find((k) => re.test(k.text)).callback_data;
+
+test('a text message becomes a draft; the task is saved only after «Создать» or a picked slot', async () => {
   const { store, bot } = await bound();
   const [a] = await bot.handle(msg('купить краску завтра в 19'));
+  assert.match(a.params.text, /Создать задачу\?[\s\S]*купить краску/);
+  assert.equal(store.data.tasks.length, 0);
+  await bot.handle(cb(btn(a, /Создать/)));
   const t = store.data.tasks.find((x) => x.title === 'купить краску');
   assert.equal(t.time, '19:00');
-  assert.match(a.params.text, /купить краску/);
   const [b] = await bot.handle(msg('отчёт до пятницы 2ч #работа'));
-  const r = store.data.tasks.find((x) => x.title === 'отчёт');
-  assert.equal(r.projectId, 'w');
-  const keys = b.params.reply_markup.inline_keyboard;
-  assert.ok(keys.length >= 2);
-  const pick = keys[0][0].callback_data;
+  assert.equal(store.data.tasks.length, 1);
+  const pick = keysOf(b)[0].callback_data;
   assert.match(pick, /^s\|/);
   const out = await bot.handle(cb(pick));
   assert.equal(out[1].method, 'editMessageText');
-  const placed = store.data.tasks.find((x) => x.id === r.id);
+  const placed = store.data.tasks.find((x) => x.title === 'отчёт');
+  assert.equal(placed.projectId, 'w');
   assert.ok(placed.time);
   assert.equal(placed.duration, 120);
   assert.ok(placed.updatedAt > 0);
 });
 
-test('cancel puts the task in the trash', async () => {
+test('cancel drops a draft; on a saved task it goes to the trash', async () => {
   const { store, bot } = await bound();
-  await bot.handle(msg('ерунда'));
-  const t = store.data.tasks[0];
-  await bot.handle(cb('d|' + t.id));
+  const [a] = await bot.handle(msg('ерунда'));
+  await bot.handle(cb(btn(a, /Отменить/)));
+  assert.equal(store.data.tasks.length, 0);
+  const [b] = await bot.handle(msg('дело'));
+  await bot.handle(cb(btn(b, /Создать/)));
+  await bot.handle(cb('d|' + store.data.tasks[0].id));
   assert.equal(store.data.tasks[0].deleted, true);
 });
 
@@ -68,6 +74,7 @@ test('voice goes through speech recognition', async () => {
   const { store, bot } = await bound({ stt: async (buf, fmt) => (fmt === 'oggopus' && buf.length ? 'позвонить маме завтра в 19' : '') });
   const r = await bot.handle({ message: { chat: { id: CHAT }, voice: { file_id: 'x' } } }, Buffer.from('ogg').toString('base64'));
   assert.match(r[0].params.text, /позвонить маме/);
+  await bot.handle(cb(btn(r[1], /Создать/)));
   assert.equal(store.data.tasks[0].time, '19:00');
 });
 
@@ -93,20 +100,21 @@ test('morning digest and review reminder go to the outbox once', async () => {
   assert.equal(bot.takeOutbox().length, 0);
 });
 
-test('«Своё время»: the next message sets the time of that task', async () => {
+test('«Своё время»: the next message sets the time, then the draft is confirmed', async () => {
   const { store, bot } = await bound();
   const [b] = await bot.handle(msg('отчёт до пятницы 2ч'));
-  const t = store.data.tasks.find((x) => x.title === 'отчёт');
-  const own = b.params.reply_markup.inline_keyboard.flat().find((k) => k.text.includes('Своё время'));
-  assert.equal(own.callback_data, 'c|' + t.id);
-  await bot.handle(cb(own.callback_data));
+  await bot.handle(cb(btn(b, /Своё время/)));
   const out = await bot.handle(msg('завтра в 11 30'));
-  assert.equal(store.data.tasks.length, 1);
-  assert.equal(t.id, store.data.tasks[0].id);
-  assert.equal(store.data.tasks[0].time, '11:30');
-  assert.equal(store.data.tasks[0].duration, 120);
   assert.equal(out[0].method, 'editMessageText');
-  // the message after that is a new task again
-  await bot.handle(msg('купить хлеб'));
-  assert.equal(store.data.tasks.length, 2);
+  assert.match(out[1].params.text, /Создать задачу\?[\s\S]*11:30/);
+  assert.equal(store.data.tasks.length, 0);
+  await bot.handle(cb(btn(out[1], /Создать/)));
+  assert.deepEqual([store.data.tasks[0].time, store.data.tasks[0].duration], ['11:30', 120]);
+  // a saved task: «Изменить время» applies at once
+  const [c] = await bot.handle(msg('купить хлеб'));
+  assert.equal(c.method, 'sendMessage');
+  await bot.handle(cb('c|' + store.data.tasks[0].id));
+  await bot.handle(msg('в 15 00'));
+  assert.equal(store.data.tasks[0].time, '15:00');
+  assert.equal(store.data.tasks.length, 1);
 });

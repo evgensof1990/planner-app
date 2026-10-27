@@ -134,16 +134,18 @@ export function parseQuick(text, { projects = [], tags = [], now = new Date() } 
   }
 
   // time: "в 15", "в 15:30", "15:30", "в 7 вечера", "в 9 утра",
-  // and the way voice recognition writes it: "на 11 30", "в 11 часов 30 минут"
-  cut(new RegExp(`${B}(в|к|на)\\s+(\\d{1,2})(?:\\s*час(?:а|ов)?)?(?:(?:[:.]|\\s+)(\\d{2})(?:\\s*минут\\p{L}*)?)?(?:\\s+(утра|дня|вечера|ночи))?${E}`, 'giu'), (m, pre, h, mm, part) => {
+  // and the way voice recognition writes it: "на 11 30", "в 14 0 0", "в 11 часов 30 минут"
+  cut(new RegExp(`${B}(в|к|на)\\s+(\\d{1,2})(?:\\s*час(?:а|ов)?)?(?:(?:[:.]|\\s+)(\\d{2}|0\\s+\\d)(?:\\s*минут\\p{L}*)?)?(?:\\s+(утра|дня|вечера|ночи))?${E}`, 'giu'), (m, pre, h, mm, part) => {
     if (out.time) return false;
+    mm = mm?.replace(/\s+/g, '');
     if (/^на$/i.test(pre) && !mm && !part) return false; // "на 3" alone is too vague
     let hh = +h;
     if (hh > 23 || (mm && +mm > 59)) return false;
     if (part && /вечера|дня/i.test(part) && hh < 12) hh += 12;
     out.time = `${String(hh).padStart(2, '0')}:${mm || '00'}`;
   });
-  cut(new RegExp(`${B}(\\d{1,2}):(\\d{2})${E}`, 'gu'), (m, h, mm) => {
+  // "14:00", and spoken "14 00" / "14 0 0"
+  cut(new RegExp(`${B}(\\d{1,2})(?::(\\d{2})|\\s+(?:00|0\\s+0))${E}`, 'gu'), (m, h, mm = '00') => {
     if (out.time || +h > 23 || +mm > 59) return false;
     out.time = `${h.padStart(2, '0')}:${mm}`;
   });

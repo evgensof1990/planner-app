@@ -780,6 +780,19 @@ export function TaskDetail({ id, onClose }) {
         >
           <Icon name="flag" />
         </button>
+        {!task.deleted && (
+          <button
+            className="icon-btn"
+            aria-label="Удалить"
+            onClick={() => {
+              deleteTask(id);
+              onClose();
+              ui.toast('Задача перемещена в корзину', { label: 'Отменить', fn: () => restoreTask(id) });
+            }}
+          >
+            <Icon name="trash" />
+          </button>
+        )}
         <button
           className="icon-btn"
           onClick={(e) =>
