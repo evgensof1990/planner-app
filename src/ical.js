@@ -113,21 +113,39 @@ export async function refreshServerEvents() {
   saveCache();
 }
 
-// Colour of each task as in Yandex Calendar: of its own event, else of its area's calendar
-export function taskColors(tasks, projects) {
-  const own = cache[SERVER]?.colors || {};
-  const byArea = {};
-  for (const t of tasks) if (own[t.id]) byArea[areaOf(t, projects)] ||= own[t.id];
-  return (t) => own[t.id] || byArea[areaOf(t, projects)] || null;
+// The Yandex calendar of each area (work / personal): the one most of its tasks are in.
+// A task just switched to the other area still sits in its old calendar until the server
+// moves it, so it gets its new area's calendar right away.
+function areaCalendars(tasks, projects) {
+  const { colors = {}, calNames = {} } = cache[SERVER] || {};
+  const votes = {};
+  for (const t of tasks) {
+    if (!calNames[t.id]) continue;
+    const v = ((votes[areaOf(t, projects)] ||= {})[calNames[t.id]] ||= { n: 0, color: colors[t.id] });
+    v.n++;
+  }
+  const out = {};
+  for (const [area, byName] of Object.entries(votes)) {
+    const [name, v] = Object.entries(byName).sort((x, y) => y[1].n - x[1].n)[0];
+    out[area] = { name, color: v.color || null };
+  }
+  return out;
 }
 
-// Name of the Yandex calendar a task goes to: of its own event, else of its area's calendar
+// Colour of each task as in Yandex Calendar: of its own event, else of its area's calendar
+export function taskColors(tasks, projects) {
+  const { colors = {}, calNames = {} } = cache[SERVER] || {};
+  const cals = areaCalendars(tasks, projects);
+  return (t) => {
+    const cal = cals[areaOf(t, projects)];
+    if (colors[t.id] && (!cal || calNames[t.id] === cal.name)) return colors[t.id];
+    return cal?.color || null;
+  };
+}
+
+// Name of the Yandex calendar a task goes to
 export function taskCalendarName(task, tasks, projects) {
-  const names = cache[SERVER]?.calNames || {};
-  if (names[task.id]) return names[task.id];
-  const area = areaOf(task, projects);
-  const t = tasks.find((x) => names[x.id] && areaOf(x, projects) === area);
-  return t ? names[t.id] : null;
+  return areaCalendars(tasks, projects)[areaOf(task, projects)]?.name || cache[SERVER]?.calNames?.[task.id] || null;
 }
 
 // Items in the shape the calendar view draws

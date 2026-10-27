@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { TopBar, IconBtn, useUi } from './components.jsx';
+import { TopBar, IconBtn, useUi, AreaToggle } from './components.jsx';
 import Icon from './icons.jsx';
 import { useStore, PRIORITY_COLORS } from './store.jsx';
 import { layoutDay } from './daylayout.js';
@@ -290,7 +290,11 @@ function EventCard({ x: item, end: evEnd, color, rect, onClose }) {
   const ui = useUi();
   const ref = useRef();
   const [pos, setPos] = useState({ top: -999, left: -999 });
-  const task = item.ext ? item : data.tasks.find((t) => t.id === item.id);
+  // date, time and area changes wait for «Готово»
+  const [draft, setDraft] = useState(null);
+  const swipe = useRef(null);
+  const saved = item.ext ? item : data.tasks.find((t) => t.id === item.id);
+  const task = saved && draft ? { ...saved, ...draft } : saved;
 
   useLayoutEffect(() => {
     const m = ref.current.getBoundingClientRect();
@@ -302,7 +306,7 @@ function EventCard({ x: item, end: evEnd, color, rect, onClose }) {
     if (left < 8) left = Math.max(8, Math.min(W - m.width - 8, rect.left + rect.width / 2 - m.width / 2));
     const top = Math.max(8, Math.min(rect.top - 8, H - m.height - 8));
     setPos({ top, left });
-  }, [rect, task?.done]);
+  }, [rect, task?.done, !!draft]);
 
   useEffect(() => {
     const down = (e) => !ref.current?.contains(e.target) && !e.target.closest?.('.cal-ev') && onClose();
@@ -339,6 +343,33 @@ function EventCard({ x: item, end: evEnd, color, rect, onClose }) {
     onClose();
     ui.openTask(copy.id);
   };
+  const save = () => {
+    updateTask(task.id, draft);
+    setDraft(null);
+    ui.toast('Сохранено');
+  };
+  // on a phone the card slides down to close, like a sheet
+  const touch = {
+    onTouchStart: (e) => {
+      if (window.innerWidth > 600 || e.target.closest('input')) return;
+      swipe.current = { y: e.touches[0].clientY, dy: 0 };
+      ref.current.style.transition = 'none';
+    },
+    onTouchMove: (e) => {
+      const s = swipe.current;
+      if (!s) return;
+      s.dy = Math.max(0, e.touches[0].clientY - s.y);
+      ref.current.style.transform = `translateY(${s.dy}px)`;
+    },
+    onTouchEnd: () => {
+      const s = swipe.current;
+      swipe.current = null;
+      if (!s) return;
+      ref.current.style.transition = '';
+      if (s.dy > 80) return onClose();
+      ref.current.style.transform = '';
+    },
+  };
   const remove = () => {
     deleteTask(task.id);
     onClose();
@@ -346,7 +377,8 @@ function EventCard({ x: item, end: evEnd, color, rect, onClose }) {
   };
 
   return (
-    <div className="ev-card" ref={ref} style={pos} role="dialog">
+    <div className="ev-card" ref={ref} style={pos} role="dialog" {...touch}>
+      <i className="ev-card-grip" />
       <div className="ev-card-head">
         <h3 className={task.done ? 'done' : ''} onClick={item.ext ? undefined : edit}>
           {task.title}
@@ -358,8 +390,24 @@ function EventCard({ x: item, end: evEnd, color, rect, onClose }) {
       </div>
       <dl className="ev-card-rows">
         <dt>Время и дата</dt>
-        <dd>{when}</dd>
-        {!item.ext && <WhenEditor task={task} onChange={(p) => updateTask(task.id, p)} />}
+        <dd>
+          {item.ext || draft ? (
+            when
+          ) : (
+            <button className="ev-card-when" onClick={() => setDraft({})}>
+              {when} <Icon name="edit" size={15} />
+            </button>
+          )}
+        </dd>
+        {draft && <WhenEditor task={task} onChange={(p) => setDraft({ ...draft, ...p })} />}
+        {draft && (
+          <>
+            <dt>Тип</dt>
+            <dd>
+              <AreaToggle value={areaOf(task, data.projects)} onChange={(area) => setDraft({ ...draft, area })} />
+            </dd>
+          </>
+        )}
         {repeat && (
           <>
             <dt>Повтор</dt>
@@ -385,7 +433,17 @@ function EventCard({ x: item, end: evEnd, color, rect, onClose }) {
         )}
       </dl>
       <div className="ev-card-actions">
-        {item.ext ? (
+        {draft ? (
+          <>
+            <div style={{ flex: 1 }} />
+            <button className="ev-card-btn" onClick={() => setDraft(null)}>
+              Отмена
+            </button>
+            <button className="ev-card-btn accent" onClick={save}>
+              <Icon name="check" size={18} /> Готово
+            </button>
+          </>
+        ) : item.ext ? (
           <a className="ev-card-btn wide" href={YANDEX_CALENDAR_URL} target="_blank" rel="noreferrer">
             Открыть в Яндекс Календаре
           </a>

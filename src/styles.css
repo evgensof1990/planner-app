@@ -3064,8 +3064,11 @@ dd.ev-card-notes {
   flex-wrap: wrap;
 }
 .when-inputs input {
+  -webkit-appearance: none;
+  appearance: none;
+  text-align: center;
   height: 36px;
-  padding: 0 8px;
+  padding: 0 10px;
   border-radius: 8px;
   border: 1px solid var(--line2);
   background: var(--surface2);
@@ -3075,10 +3078,13 @@ dd.ev-card-notes {
   color-scheme: light dark;
 }
 .when-inputs input[type='date'] {
-  width: 150px;
+  width: 128px;
 }
 .when-inputs input[type='time'] {
-  width: 96px;
+  width: 84px;
+}
+.when-inputs input::-webkit-calendar-picker-indicator {
+  display: none;
 }
 .when-inputs span {
   color: var(--text2);
@@ -3099,4 +3105,35 @@ dd.ev-card-notes {
 }
 .when-chips button:hover {
   background: var(--surface3);
+}
+
+.ev-card-when {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  border-bottom: 1px dashed var(--line2);
+}
+.ev-card-when svg {
+  flex: none;
+  color: var(--text2);
+}
+.ev-card-grip {
+  display: none;
+}
+@media (max-width: 600px) {
+  .ev-card {
+    transition: transform 0.15s;
+  }
+  .ev-card-grip {
+    display: block;
+    width: 36px;
+    height: 4px;
+    margin: -6px auto 10px;
+    border-radius: 2px;
+    background: var(--line2);
+  }
 }
