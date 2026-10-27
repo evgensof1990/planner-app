@@ -3063,30 +3063,32 @@ dd.ev-card-notes {
   gap: 6px;
   flex-wrap: wrap;
 }
-.when-inputs input {
-  -webkit-appearance: none;
-  appearance: none;
-  text-align: center;
+.pick-field {
+  position: relative;
+}
+.pick-field button {
   height: 36px;
-  padding: 0 10px;
+  padding: 0 12px;
   border-radius: 8px;
   border: 1px solid var(--line2);
   background: var(--surface2);
   color: var(--text);
   font: inherit;
   font-size: 14px;
-  color-scheme: light dark;
+  white-space: nowrap;
 }
-.when-inputs input[type='date'] {
-  width: 128px;
+.pick-field input {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+  border: 0;
+  padding: 0;
 }
-.when-inputs input[type='time'] {
-  width: 84px;
-}
-.when-inputs input::-webkit-calendar-picker-indicator {
-  display: none;
-}
-.when-inputs span {
+.when-inputs > span:not(.pick-field) {
   color: var(--text2);
 }
 .when-chips {

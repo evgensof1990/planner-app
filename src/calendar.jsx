@@ -237,6 +237,28 @@ const toMin = (t) => {
 };
 const hhmm = (min) => `${pad(Math.floor(min / 60) % 24)}:${pad(min % 60)}`;
 
+// A button showing the value; a tap opens the system date or time picker of a hidden input
+// (the bare inputs render cramped and clipped in the Android WebView)
+function PickField({ type, label, value, onPick, aria }) {
+  const inp = useRef();
+  const open = () => {
+    try {
+      inp.current.showPicker();
+    } catch (e) {
+      inp.current.focus();
+      inp.current.click();
+    }
+  };
+  return (
+    <span className="pick-field">
+      <button type="button" onClick={open} aria-label={aria}>
+        {label}
+      </button>
+      <input ref={inp} type={type} step={type === 'time' ? 300 : undefined} value={value} tabIndex={-1} aria-hidden="true" onChange={(e) => e.target.value && onPick(e.target.value)} />
+    </span>
+  );
+}
+
 // Date and time right in the event card: native pickers plus one-tap shifts
 function WhenEditor({ task, onChange }) {
   const t = todayKey();
@@ -250,21 +272,20 @@ function WhenEditor({ task, onChange }) {
   return (
     <div className="when-edit">
       <div className="when-inputs">
-        <input type="date" value={task.date} onChange={(e) => e.target.value && onChange({ date: e.target.value })} aria-label="Дата" />
-        <input type="time" step="300" value={task.time || ''} onChange={(e) => onChange({ time: e.target.value || null })} aria-label="Начало" />
+        <PickField type="date" label={`${WD[parseKey(task.date).getDay()]}, ${parseKey(task.date).getDate()} ${MONTHS_GEN[parseKey(task.date).getMonth()]}`} value={task.date} onPick={(v) => onChange({ date: v })} aria="Дата" />
+        <PickField type="time" label={task.time || 'Время'} value={task.time || '09:00'} onPick={(v) => onChange({ time: v })} aria="Начало" />
         {task.time && (
           <>
             <span>—</span>
-            <input
+            <PickField
               type="time"
-              step="300"
+              label={hhmm(Math.min(start + dur, 24 * 60 - 1))}
               value={hhmm(Math.min(start + dur, 24 * 60 - 1))}
-              onChange={(e) => {
-                if (!e.target.value) return;
-                const len = toMin(e.target.value) - start;
+              onPick={(v) => {
+                const len = toMin(v) - start;
                 if (len >= 5) onChange({ duration: len });
               }}
-              aria-label="Конец"
+              aria="Конец"
             />
           </>
         )}
