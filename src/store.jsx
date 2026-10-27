@@ -43,6 +43,8 @@ function seed() {
   ];
   const parent = mkTask({ title: 'Ремонт на балконе', projectId: home });
   tasks.push(parent, mkTask({ title: 'Замерить стены', projectId: home, parentId: parent.id, done: true, doneAt: Date.now() }), mkTask({ title: 'Выбрать краску', projectId: home, parentId: parent.id }));
+  // starter examples: a fresh device that connects to existing data drops them instead of merging
+  tasks.forEach((x) => (x.seed = true));
   return {
     tasks,
     projects: [

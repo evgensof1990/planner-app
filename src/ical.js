@@ -4,6 +4,7 @@ import { isNative } from './notify.js';
 import { keyOf, pad } from './date.js';
 import { parseEvents, expandEvents } from './icalparse.js';
 import { getCfg, isServer, api } from './sync.js';
+import { areaOf } from './scheduler.js';
 
 const CKEY = 'planner-ical';
 const listeners = new Set();
@@ -86,20 +87,32 @@ export async function refreshServerEvents() {
   const now = Date.now();
   try {
     const { events } = await api(cfg, `/api/events?from=${now - 30 * 864e5}&to=${now + 60 * 864e5}`);
+    // colours of the task calendars in Yandex, by task id (event UID is planner-<task id>)
+    const colors = {};
+    for (const e of events) if (e.own && e.color && e.uid?.startsWith('planner-')) colors[e.uid.slice(8)] = e.color.slice(0, 7);
     cache[SERVER] = {
       fetchedAt: now,
       error: null,
+      colors,
       events: events
         .filter((e) => !e.own)
         .map((e) => {
           const s = new Date(e.start);
-          return { title: e.title, busy: e.busy, date: keyOf(s), time: e.allDay ? null : `${pad(s.getHours())}:${pad(s.getMinutes())}`, dur: e.allDay ? 0 : Math.max(15, Math.round((e.end - e.start) / 6e4)), color: e.color, calName: e.calName };
+          return { title: e.title, busy: e.busy, date: keyOf(s), time: e.allDay ? null : `${pad(s.getHours())}:${pad(s.getMinutes())}`, dur: e.allDay ? 0 : Math.max(15, Math.round((e.end - e.start) / 6e4)), color: e.color?.slice(0, 7), calName: e.calName };
         }),
     };
   } catch (e) {
     cache[SERVER] = { ...(cache[SERVER] || { events: [] }), fetchedAt: now, error: e.message };
   }
   saveCache();
+}
+
+// Colour of each task as in Yandex Calendar: of its own event, else of its area's calendar
+export function taskColors(tasks, projects) {
+  const own = cache[SERVER]?.colors || {};
+  const byArea = {};
+  for (const t of tasks) if (own[t.id]) byArea[areaOf(t, projects)] ||= own[t.id];
+  return (t) => own[t.id] || byArea[areaOf(t, projects)] || null;
 }
 
 // Items in the shape the calendar view draws
