@@ -1656,8 +1656,7 @@ textarea {
   font-weight: 500;
 }
 .cal-ev.done {
-  opacity: 0.45;
-  text-decoration: line-through;
+  opacity: 0.75;
 }
 .cal-month {
   flex: 1;
@@ -1714,7 +1713,7 @@ textarea {
   text-overflow: ellipsis;
 }
 .cm-ev.done {
-  opacity: 0.45;
+  opacity: 0.75;
 }
 .cm-more {
   font-size: 10px;
@@ -2858,18 +2857,37 @@ textarea {
   padding: 18px 0;
 }
 
-/* Yandex Calendar icon above the month title, links to Yandex Calendar */
+/* Yandex Calendar icon: in the toolbar on wide screens, next to the month title on phones */
 .ya-cal-link {
-  display: inline-block;
-  margin: 2px 0 6px;
+  display: inline-flex;
+  flex-shrink: 0;
   line-height: 0;
 }
 .ya-cal-link img {
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
   transition: transform 0.15s;
 }
 .ya-cal-link:hover img {
   transform: scale(1.06);
+}
+.ya-cal-link.phone-only img {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+}
+.tb-yandex {
+  margin-right: auto;
+}
+@media (min-width: 900px) {
+  .ya-cal-link.phone-only {
+    display: none;
+  }
+}
+@media (max-width: 480px) {
+  /* the calendar's top bar holds the Yandex icon too: keep the month title whole on phones */
+  .topbar:has(.ya-cal-link) .icon-btn {
+    width: 32px;
+  }
 }

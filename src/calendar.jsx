@@ -1,12 +1,20 @@
 import { useEffect, useRef, useState } from 'react';
 import { TopBar, IconBtn, useUi } from './components.jsx';
-import { useStore, alive, PRIORITY_COLORS } from './store.jsx';
+import { useStore, PRIORITY_COLORS } from './store.jsx';
 import { layoutDay } from './daylayout.js';
 import { calendarItems, onCalendarsChange, refreshStale, taskColors } from './ical.js';
 import { MONTHS, WD, WD_MON, addDays, monthGrid, parseKey, todayKey, pad, weekStart } from './date.js';
 
 const HOUR = 54;
 const YANDEX_CALENDAR_URL = 'https://calendar.yandex.ru/week?uid=474876932';
+
+export function YandexCalendarLink({ className = '' }) {
+  return (
+    <a className={'ya-cal-link ' + className} href={YANDEX_CALENDAR_URL} target="_blank" rel="noreferrer" title="Открыть Яндекс Календарь">
+      <img src="./yandex-calendar.png" alt="Яндекс Календарь" />
+    </a>
+  );
+}
 const MODES = [
   ['day', 'День', 1],
   ['3day', '3 дня', 3],
@@ -27,7 +35,9 @@ export function CalendarView({ day, setDay }) {
   const [, bump] = useState(0);
   useEffect(() => onCalendarsChange(() => bump((x) => x + 1)), []);
   useEffect(() => refreshStale(data.settings.calendars), [data.settings.calendars]);
-  const tasks = [...data.tasks.filter((x) => alive(x) && x.date), ...calendarItems(data.settings.calendars)];
+  // done tasks stay in the calendar (also once archived), with a check mark as in Yandex Calendar
+  const tasks = [...data.tasks.filter((x) => !x.deleted && x.date), ...calendarItems(data.settings.calendars)];
+  const label = (x) => (x.done ? '✓ ' : '') + x.title;
   const taskColor = taskColors(data.tasks, data.projects);
   const colorOf = (x) => (x.ext ? x.color : taskColor(x));
   // Events are filled with a pastel of their calendar's colour, as in Yandex Calendar (see .cal-ev in styles.css)
@@ -63,11 +73,14 @@ export function CalendarView({ day, setDay }) {
     <div className="view">
       <TopBar
         title={`${MONTHS[d.getMonth()]} ${d.getFullYear()}`}
-        above={
-          <a className="ya-cal-link" href={YANDEX_CALENDAR_URL} target="_blank" rel="noreferrer" title="Открыть Яндекс Календарь">
-            <img src="./yandex-calendar.png" alt="Яндекс Календарь" />
-          </a>
-        } left={<IconBtn name="menu" className="menu-btn" onClick={ui.openDrawer} />}>
+        left={
+          <>
+            <IconBtn name="menu" className="menu-btn" onClick={ui.openDrawer} />
+            {/* on wide screens the link sits in the toolbar instead (App.jsx) */}
+            <YandexCalendarLink className="phone-only" />
+          </>
+        }
+      >
         <IconBtn name="chevL" size={18} onClick={() => shift(-1)} />
         <IconBtn name="chevR" size={18} onClick={() => shift(1)} />
         <IconBtn name="star" onClick={() => setDay(t)} title="Сегодня" />
@@ -102,7 +115,7 @@ export function CalendarView({ day, setDay }) {
                 <span className="cm-n">{parseKey(k).getDate()}</span>
                 {list.slice(0, 3).map((x) => (
                   <span key={x.id} className={'cm-ev' + (x.done ? ' done' : '')} style={tint(x)}>
-                    {x.title}
+                    {label(x)}
                   </span>
                 ))}
                 {list.length > 3 && <span className="cm-more">+{list.length - 3}</span>}
@@ -129,7 +142,7 @@ export function CalendarView({ day, setDay }) {
                   .filter((x) => x.date === k && !x.time)
                   .map((x) => (
                     <button key={x.id} className={'cal-ev allday' + (x.done ? ' done' : '')} style={tint(x)} onClick={() => open(x)}>
-                      {x.title}
+                      {label(x)}
                     </button>
                   ))}
               </div>
@@ -187,11 +200,11 @@ export function CalendarView({ day, setDay }) {
                             <span className="ev-time">
                               {x.time} – {hm(end)}
                             </span>
-                            <span className="ev-title">{x.title}</span>
+                            <span className="ev-title">{label(x)}</span>
                           </>
                         ) : (
                           <>
-                            <span className="ev-time">{x.time}</span> <span className="ev-title">{x.title}</span>
+                            <span className="ev-time">{x.time}</span> <span className="ev-title">{label(x)}</span>
                           </>
                         )}
                       </button>
