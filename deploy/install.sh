@@ -44,7 +44,7 @@ YANDEX_APP_PASSWORD=$YPASS
 CAL_WORK=Плановик Работа
 CAL_PERSONAL=Плановик Личное
 PORT=3300
-ALLOWED_ORIGINS=https://evgensof1990.github.io,https://$DOMAIN,https://localhost,capacitor://localhost,http://localhost:5173
+ALLOWED_ORIGINS=https://app.myrenthub.ru,https://evgensof1990.github.io,https://$DOMAIN,https://localhost,capacitor://localhost,http://localhost:5173
 EOF
   chmod 600 "$ENV_FILE"
   echo
