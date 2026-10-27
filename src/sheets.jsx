@@ -907,7 +907,13 @@ export function TaskDetail({ id, onClose }) {
           </span>
           <Icon name="chevD" size={16} />
         </button>
-        <AreaToggle value={areaOf(task, data.projects)} onChange={(area) => up({ area })} />
+        <AreaToggle
+          value={areaOf(task, data.projects)}
+          onChange={(area) => {
+            up({ area });
+            ui.toast(area === 'work' ? 'Задача рабочая: календарь «рабочее»' : 'Задача личная: календарь «личное»');
+          }}
+        />
         <div style={{ flex: 1 }} />
         <button className="icon-btn" onClick={() => ui.openTags(task.tags, (tags) => up({ tags }))}>
           <Icon name="tag" />
