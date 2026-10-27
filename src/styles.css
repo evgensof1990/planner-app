@@ -3048,3 +3048,55 @@ dd.ev-card-notes {
   background: var(--surface3);
   color: var(--text);
 }
+
+/* date and time editing in the event card */
+.when-edit {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: -4px;
+}
+.when-inputs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.when-inputs input {
+  height: 36px;
+  padding: 0 8px;
+  border-radius: 8px;
+  border: 1px solid var(--line2);
+  background: var(--surface2);
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  color-scheme: light dark;
+}
+.when-inputs input[type='date'] {
+  width: 150px;
+}
+.when-inputs input[type='time'] {
+  width: 96px;
+}
+.when-inputs span {
+  color: var(--text2);
+}
+.when-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.when-chips button {
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 8px;
+  background: var(--surface2);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+}
+.when-chips button:hover {
+  background: var(--surface3);
+}

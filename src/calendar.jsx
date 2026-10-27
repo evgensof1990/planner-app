@@ -231,10 +231,62 @@ export function CalendarView({ day, setDay }) {
   );
 }
 
+const toMin = (t) => {
+  const [h, m] = t.split(':').map(Number);
+  return h * 60 + m;
+};
+const hhmm = (min) => `${pad(Math.floor(min / 60) % 24)}:${pad(min % 60)}`;
+
+// Date and time right in the event card: native pickers plus one-tap shifts
+function WhenEditor({ task, onChange }) {
+  const t = todayKey();
+  const dur = task.duration || 30;
+  const start = task.time ? toMin(task.time) : null;
+  const shift = (min) => {
+    const m = start + min;
+    if (m < 0 || m + dur > 24 * 60) return onChange({ date: addDays(task.date, Math.floor(m / (24 * 60))), time: hhmm(((m % 1440) + 1440) % 1440) });
+    onChange({ time: hhmm(m) });
+  };
+  return (
+    <div className="when-edit">
+      <div className="when-inputs">
+        <input type="date" value={task.date} onChange={(e) => e.target.value && onChange({ date: e.target.value })} aria-label="Дата" />
+        <input type="time" step="300" value={task.time || ''} onChange={(e) => onChange({ time: e.target.value || null })} aria-label="Начало" />
+        {task.time && (
+          <>
+            <span>—</span>
+            <input
+              type="time"
+              step="300"
+              value={hhmm(Math.min(start + dur, 24 * 60 - 1))}
+              onChange={(e) => {
+                if (!e.target.value) return;
+                const len = toMin(e.target.value) - start;
+                if (len >= 5) onChange({ duration: len });
+              }}
+              aria-label="Конец"
+            />
+          </>
+        )}
+      </div>
+      <div className="when-chips">
+        {task.date !== t && <button onClick={() => onChange({ date: t })}>Сегодня</button>}
+        {task.date !== addDays(t, 1) && <button onClick={() => onChange({ date: addDays(t, 1) })}>Завтра</button>}
+        <button onClick={() => onChange({ date: addDays(task.date, 1) })}>+1 день</button>
+        <button onClick={() => onChange({ date: addDays(task.date, 7) })}>+1 нед</button>
+        {task.time && <button onClick={() => shift(-30)}>−30 мин</button>}
+        {task.time && <button onClick={() => shift(30)}>+30 мин</button>}
+        {task.time && <button onClick={() => shift(60)}>+1 ч</button>}
+        {task.time ? <button onClick={() => onChange({ time: null })}>Весь день</button> : <button onClick={() => onChange({ time: '09:00' })}>Задать время</button>}
+      </div>
+    </div>
+  );
+}
+
 const WD_FULL = ['Воскресенье', 'Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота'];
 
-function EventCard({ x: item, end, color, rect, onClose }) {
-  const { data, toggleTask, deleteTask, restoreTask, addTask } = useStore();
+function EventCard({ x: item, end: evEnd, color, rect, onClose }) {
+  const { data, toggleTask, deleteTask, restoreTask, addTask, updateTask } = useStore();
   const ui = useUi();
   const ref = useRef();
   const [pos, setPos] = useState({ top: -999, left: -999 });
@@ -270,6 +322,9 @@ function EventCard({ x: item, end, color, rect, onClose }) {
   if (!task) return null;
   const d = parseKey(task.date);
   const hm = (min) => `${pad(Math.floor(min / 60) % 24)}:${pad(min % 60)}`;
+  let end = evEnd;
+  // own tasks: the end follows the task's length, so edits show at once
+  if (!item.ext && task.time) end = toMin(task.time) + (task.duration || 30);
   const when = `${WD_FULL[d.getDay()]}, ${d.getDate()} ${MONTHS_GEN[d.getMonth()]}` + (task.time ? `, ${task.time}${end ? ' — ' + hm(end) : ''}` : ', весь день');
   const project = !item.ext && data.projects.find((p) => p.id === task.projectId);
   const calName = item.ext ? task.calName : taskCalendarName(task, data.tasks, data.projects) || (areaOf(task, data.projects) === 'work' ? 'Работа' : 'Личное');
@@ -304,6 +359,7 @@ function EventCard({ x: item, end, color, rect, onClose }) {
       <dl className="ev-card-rows">
         <dt>Время и дата</dt>
         <dd>{when}</dd>
+        {!item.ext && <WhenEditor task={task} onChange={(p) => updateTask(task.id, p)} />}
         {repeat && (
           <>
             <dt>Повтор</dt>
