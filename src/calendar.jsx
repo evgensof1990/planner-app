@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { TopBar, IconBtn, useUi } from './components.jsx';
+import Icon from './icons.jsx';
 import { useStore, alive, PRIORITY_COLORS } from './store.jsx';
 import { layoutDay } from './daylayout.js';
 import { calendarItems, onCalendarsChange, refreshStale, taskColors } from './ical.js';
 import { MONTHS, WD, WD_MON, addDays, monthGrid, parseKey, todayKey, pad, weekStart } from './date.js';
 
 const HOUR = 54;
+const YANDEX_CALENDAR_URL = 'https://calendar.yandex.ru/week?uid=474876932';
 const MODES = [
   ['day', 'День', 1],
   ['3day', '3 дня', 3],
@@ -58,6 +60,11 @@ export function CalendarView({ day, setDay }) {
 
   return (
     <div className="view">
+      <a className="ya-cal-link" href={YANDEX_CALENDAR_URL} target="_blank" rel="noreferrer">
+        <Icon name="calendar" size={18} />
+        <span>Открыть Яндекс Календарь</span>
+        <span className="ya-arrow">↗</span>
+      </a>
       <TopBar title={`${MONTHS[d.getMonth()]} ${d.getFullYear()}`} left={<IconBtn name="menu" className="menu-btn" onClick={ui.openDrawer} />}>
         <IconBtn name="chevL" size={18} onClick={() => shift(-1)} />
         <IconBtn name="chevR" size={18} onClick={() => shift(1)} />
