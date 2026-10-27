@@ -34,6 +34,8 @@ body,
   background: var(--bg);
   color: var(--text);
   font-family: 'Golos Text', Roboto, -apple-system, 'Segoe UI', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   font-size: 15px;
   overscroll-behavior: none;
 }
@@ -163,8 +165,8 @@ textarea {
   padding-left: 8px;
 }
 .topbar-title .tt {
-  font-size: 19px;
-  font-weight: 600;
+  font-size: 20px;
+  font-weight: 500;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -318,11 +320,11 @@ textarea {
 .group-title {
   flex: 1;
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--text);
 }
 .group-title .gd {
-  font-weight: 600;
+  font-weight: 500;
   margin-right: 6px;
 }
 .group-right {
@@ -432,7 +434,7 @@ textarea {
   background: #26b5c9;
   color: #fff;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 500;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -482,7 +484,7 @@ textarea {
   padding: 0 10px;
   border-radius: 9px;
   color: var(--text);
-  font-weight: 500;
+  font-weight: 400;
   cursor: pointer;
   text-align: left;
 }
@@ -531,7 +533,7 @@ textarea {
   width: 21px;
   text-align: center;
   color: var(--accent);
-  font-weight: 600;
+  font-weight: 500;
 }
 .side-bottom {
   display: flex;
@@ -600,7 +602,7 @@ textarea {
 .sheet-title {
   flex: 1;
   text-align: center;
-  font-weight: 600;
+  font-weight: 500;
   font-size: 17px;
 }
 .sheet-title.center {
@@ -846,7 +848,7 @@ textarea {
 }
 .mcal-day.today {
   color: var(--accent);
-  font-weight: 600;
+  font-weight: 500;
 }
 .mcal-day.sel {
   background: var(--accent);
@@ -1105,7 +1107,7 @@ textarea {
 }
 .toast button {
   color: var(--accent);
-  font-weight: 600;
+  font-weight: 500;
 }
 
 /* task detail */
@@ -1127,7 +1129,7 @@ textarea {
   width: 100%;
   resize: none;
   font-size: 21px;
-  font-weight: 600;
+  font-weight: 500;
   line-height: 1.35;
   padding: 4px 0;
 }
@@ -1244,7 +1246,7 @@ textarea {
 }
 .wd.today .wd-d {
   color: var(--accent);
-  font-weight: 600;
+  font-weight: 500;
 }
 .wd.sel::after {
   content: '';
@@ -1286,7 +1288,7 @@ textarea {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-weight: 600;
+  font-weight: 500;
   padding: 4px 0 6px 6px;
 }
 .kcol-body {
@@ -1411,7 +1413,7 @@ textarea {
   color: var(--text2);
 }
 .hm {
-  font-weight: 600;
+  font-weight: 500;
   font-size: 14px;
 }
 .habit-day {
@@ -1489,7 +1491,7 @@ textarea {
 }
 .sc-value {
   font-size: 26px;
-  font-weight: 600;
+  font-weight: 500;
   margin: 10px 0 6px;
 }
 .sc-text {
@@ -1526,7 +1528,7 @@ textarea {
   align-items: center;
   gap: 3px;
   padding: 2px 0 6px;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text2);
 }
 .ch-day b {
@@ -1536,9 +1538,9 @@ textarea {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 15px;
+  font-size: 16px;
   color: var(--text);
-  font-weight: 500;
+  font-weight: 400;
 }
 .ch-day.today b {
   background: var(--accent);
@@ -1629,7 +1631,7 @@ textarea {
   box-shadow: 0 0 0 1px var(--bg);
 }
 .cal-ev .ev-title {
-  font-weight: 600;
+  font-weight: 500;
 }
 .cal-ev.tall {
   display: flex;
@@ -1649,7 +1651,7 @@ textarea {
 .cal-ev.allday {
   position: static;
   padding: 2px 6px;
-  font-weight: 600;
+  font-weight: 500;
 }
 .cal-ev.done {
   opacity: 0.45;
@@ -1730,7 +1732,7 @@ textarea {
 }
 .ptabs button {
   font-size: 17px;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--text2);
   padding: 6px 0;
   position: relative;
@@ -1862,7 +1864,7 @@ textarea {
 .pstat b {
   display: block;
   font-size: 30px;
-  font-weight: 600;
+  font-weight: 500;
   margin-top: 12px;
   position: relative;
   z-index: 1;
@@ -1900,7 +1902,7 @@ textarea {
   color: var(--text);
 }
 .panel-title {
-  font-weight: 600;
+  font-weight: 500;
   font-size: 16px;
   margin-bottom: 12px;
 }
@@ -2246,7 +2248,7 @@ textarea {
 }
 .stab.on {
   color: var(--text);
-  font-weight: 600;
+  font-weight: 500;
 }
 .stab.on svg {
   color: var(--accent);
@@ -2381,7 +2383,7 @@ textarea {
 }
 .s-title {
   text-align: center;
-  font-weight: 600;
+  font-weight: 500;
   margin: 8px 0 12px;
 }
 .iface {
@@ -2620,7 +2622,7 @@ textarea {
 }
 .plan-bar b {
   margin-left: auto;
-  font-weight: 600;
+  font-weight: 500;
 }
 .plan-list .row-btn span {
   display: flex;
@@ -2703,7 +2705,7 @@ textarea {
   display: flex;
   justify-content: space-between;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 500;
   margin-bottom: 4px;
 }
 .goal-q-title span {
@@ -2766,7 +2768,7 @@ textarea {
 }
 .rv-big {
   font-size: 44px;
-  font-weight: 700;
+  font-weight: 600;
   display: flex;
   align-items: baseline;
   gap: 10px;
