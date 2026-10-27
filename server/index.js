@@ -13,7 +13,7 @@ const env = process.env;
 const PORT = +(env.PORT || 3300);
 const HOST = env.HOST || '127.0.0.1';
 const TOKEN = env.PLANNER_TOKEN || '';
-const ORIGINS = (env.ALLOWED_ORIGINS || 'https://evgensof1990.github.io,https://localhost,capacitor://localhost,http://localhost:5173').split(',').map((s) => s.trim());
+const ORIGINS = (env.ALLOWED_ORIGINS || 'https://app.myrenthub.ru,https://evgensof1990.github.io,https://localhost,capacitor://localhost,http://localhost:5173').split(',').map((s) => s.trim());
 const PULL_MINUTES = +(env.PULL_MINUTES || 5);
 
 if (TOKEN.length < 16) {

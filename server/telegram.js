@@ -12,7 +12,7 @@ const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replac
 const dur = (m) => (m < 60 ? `${m} мин` : `${Math.floor(m / 60)} ч${m % 60 ? ` ${m % 60} мин` : ''}`);
 const alive = (t) => !t.deleted && !t.archived;
 
-export const APP_URL = 'https://evgensof1990.github.io/planner-app/';
+export const APP_URL = 'https://app.myrenthub.ru/';
 
 const HELP = [
   'Пишите задачи как обычно, я разберу дату, время, длительность и проект:',
