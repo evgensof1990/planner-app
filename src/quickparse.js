@@ -19,6 +19,11 @@ const WEEKDAYS = [
 const B = '(?<![\\p{L}\\d])'; // word start
 const E = '(?![\\p{L}\\d])'; // word end
 
+// "в 11 часов" is a time, not a duration
+const NOT_AT = '(?<!(?:^|\\s)(?:в|к)\\s+(?:\\d{1,2}\\s*час(?:а|ов)?\\s+)?)';
+const DUR_PRE = '(?:(?:на|продолжительностью|длительностью)\\s+)?';
+const COMMAND = /^(?:(?:создай|создать|добавь|добавить|поставь|поставить|запиши|записать|новая)(?:\s+(?:задачу|задача|напоминание))?|задача|напомни(?:ть)?(?:\s+мне)?)(?:[\s:,.-]+|$)/iu;
+
 const norm = (s) => s.toLowerCase().replace(/ё/g, 'е').replace(/[^a-zа-я0-9]/g, '');
 
 function monthIndex(word) {
@@ -101,13 +106,13 @@ export function parseQuick(text, { projects = [], tags = [], now = new Date() } 
   });
 
   // duration: 2ч, 1.5 часа, 30 мин, 1ч30м, полчаса
-  cut(new RegExp(`${B}(?:на\\s+)?(\\d+(?:[.,]\\d+)?)\\s*(?:ч|час|часа|часов)\\s*(?:(\\d+)\\s*(?:м|мин|минут[ы]?))?${E}`, 'giu'), (_, h, mm) => {
+  cut(new RegExp(`${NOT_AT}${B}${DUR_PRE}(\\d+(?:[.,]\\d+)?)\\s*(?:ч|час|часа|часов)\\s*(?:(\\d+)\\s*(?:м|мин|минут[ы]?))?${E}`, 'giu'), (_, h, mm) => {
     out.duration = Math.round(parseFloat(h.replace(',', '.')) * 60) + (+mm || 0);
   });
-  cut(new RegExp(`${B}(?:на\\s+)?(\\d+)\\s*(?:м|мин|минут[ау]?)${E}`, 'giu'), (_, mm) => {
+  cut(new RegExp(`${NOT_AT}${B}${DUR_PRE}(\\d+)\\s*(?:м|мин|минут[ау]?)${E}`, 'giu'), (_, mm) => {
     out.duration = +mm;
   });
-  cut(new RegExp(`${B}(?:на\\s+)?(полчаса|час)${E}`, 'giu'), (_, w) => {
+  cut(new RegExp(`${B}${DUR_PRE}(полчаса|час)${E}`, 'giu'), (_, w) => {
     out.duration = w.toLowerCase() === 'полчаса' ? 30 : 60;
   });
 
@@ -128,9 +133,11 @@ export function parseQuick(text, { projects = [], tags = [], now = new Date() } 
     i = -1;
   }
 
-  // time: "в 15", "в 15:30", "15:30", "в 7 вечера", "в 9 утра"
-  cut(new RegExp(`${B}(?:в|к)\\s+(\\d{1,2})(?:[:.](\\d{2}))?(?:\\s+(утра|дня|вечера|ночи))?${E}`, 'giu'), (m, h, mm, part) => {
+  // time: "в 15", "в 15:30", "15:30", "в 7 вечера", "в 9 утра",
+  // and the way voice recognition writes it: "на 11 30", "в 11 часов 30 минут"
+  cut(new RegExp(`${B}(в|к|на)\\s+(\\d{1,2})(?:\\s*час(?:а|ов)?)?(?:(?:[:.]|\\s+)(\\d{2})(?:\\s*минут\\p{L}*)?)?(?:\\s+(утра|дня|вечера|ночи))?${E}`, 'giu'), (m, pre, h, mm, part) => {
     if (out.time) return false;
+    if (/^на$/i.test(pre) && !mm && !part) return false; // "на 3" alone is too vague
     let hh = +h;
     if (hh > 23 || (mm && +mm > 59)) return false;
     if (part && /вечера|дня/i.test(part) && hh < 12) hh += 12;
@@ -147,5 +154,8 @@ export function parseQuick(text, { projects = [], tags = [], now = new Date() } 
   }
 
   out.title = s.replace(/\s+/g, ' ').trim();
+  // spoken commands: "создай задачу …", "напомни мне …"
+  const bare = out.title.replace(COMMAND, '');
+  if (bare && bare !== out.title) out.title = bare[0].toUpperCase() + bare.slice(1);
   return out;
 }
