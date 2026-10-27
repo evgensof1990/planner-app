@@ -447,7 +447,7 @@ const SERVER_URL = 'https://plan.myrenthub.ru';
 const TOKEN_URL = 'https://github.com/settings/tokens/new?scopes=gist&description=' + encodeURIComponent('Плановик синхронизация');
 
 function SyncSection() {
-  const { sync } = useStore();
+  const { sync, data } = useStore();
   const ui = useUi();
   const [token, setToken] = useState('');
   const [url, setUrl] = useState(SERVER_URL);
@@ -487,7 +487,11 @@ function SyncSection() {
     try {
       const existing = await sync.probeServer(u, k);
       const done = () => ui.toast('Сервер подключён');
-      if (existing) {
+      if (existing && data.tasks.every((t) => t.seed)) {
+        // only the starter examples here: take the server data as is
+        await sync.connectServer(u, k, 'replace');
+        done();
+      } else if (existing) {
         ui.confirm(
           'На сервере уже есть данные. Заменить ими данные на этом устройстве? «Объединить» сохранит и то, и другое.',
           () => sync.connectServer(u, k, 'replace').then(done),

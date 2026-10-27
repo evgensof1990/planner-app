@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { TopBar, IconBtn, useUi } from './components.jsx';
 import { useStore, alive, PRIORITY_COLORS } from './store.jsx';
 import { layoutDay } from './daylayout.js';
-import { calendarItems, onCalendarsChange, refreshStale } from './ical.js';
+import { calendarItems, onCalendarsChange, refreshStale, taskColors } from './ical.js';
 import { MONTHS, WD, WD_MON, addDays, monthGrid, parseKey, todayKey, pad, weekStart } from './date.js';
 
 const HOUR = 54;
@@ -27,6 +27,12 @@ export function CalendarView({ day, setDay }) {
   useEffect(() => onCalendarsChange(() => bump((x) => x + 1)), []);
   useEffect(() => refreshStale(data.settings.calendars), [data.settings.calendars]);
   const tasks = [...data.tasks.filter((x) => alive(x) && x.date), ...calendarItems(data.settings.calendars)];
+  const taskColor = taskColors(data.tasks, data.projects);
+  const colorOf = (x) => (x.ext ? x.color : taskColor(x));
+  const tint = (x, a) => {
+    const c = colorOf(x);
+    return c ? { background: c + a } : undefined;
+  };
   const open = (x) => (x.ext ? ui.toast(`${x.calName}: ${x.title}${x.time ? ', ' + x.time : ''}`) : ui.openTask(x.id));
   const d = parseKey(day);
   const now = new Date();
@@ -86,7 +92,7 @@ export function CalendarView({ day, setDay }) {
               >
                 <span className="cm-n">{parseKey(k).getDate()}</span>
                 {list.slice(0, 3).map((x) => (
-                  <span key={x.id} className={'cm-ev' + (x.done ? ' done' : '')} style={x.ext ? { background: x.color + '33' } : undefined}>
+                  <span key={x.id} className={'cm-ev' + (x.done ? ' done' : '')} style={tint(x, '33')}>
                     {x.title}
                   </span>
                 ))}
@@ -113,7 +119,7 @@ export function CalendarView({ day, setDay }) {
                 {tasks
                   .filter((x) => x.date === k && !x.time)
                   .map((x) => (
-                    <button key={x.id} className={'cal-ev allday' + (x.done ? ' done' : '')} style={x.ext ? { background: x.color + '33' } : undefined} onClick={() => open(x)}>
+                    <button key={x.id} className={'cal-ev allday' + (x.done ? ' done' : '')} style={tint(x, '33')} onClick={() => open(x)}>
                       {x.title}
                     </button>
                   ))}
@@ -156,8 +162,8 @@ export function CalendarView({ day, setDay }) {
                           left: `calc(${(col / cols) * 100}% + 2px)`,
                           width: `calc(${100 / cols}% - 4px)`,
                           right: 'auto',
-                          borderLeftColor: x.ext ? x.color : PRIORITY_COLORS[x.priority] || 'var(--accent)',
-                          ...(x.ext ? { background: x.color + '30' } : {}),
+                          borderLeftColor: colorOf(x) || PRIORITY_COLORS[x.priority] || 'var(--accent)',
+                          ...tint(x, '30'),
                         }}
                         title={`${x.time} ${x.title}`}
                         onClick={() => open(x)}
