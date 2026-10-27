@@ -35,11 +35,12 @@ export function SheetHeader({ title, onClose, onOk }) {
   );
 }
 
-export function TopBar({ title, sub, left, children, onTitle }) {
+export function TopBar({ title, sub, above, left, children, onTitle }) {
   return (
     <div className="topbar">
       {left}
       <div className="topbar-title" onClick={onTitle}>
+        {above}
         <div className="tt">{title}</div>
         {sub && <div className="ts">{sub}</div>}
       </div>

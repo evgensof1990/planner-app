@@ -61,14 +61,17 @@ export function CalendarView({ day, setDay }) {
 
   return (
     <div className="view">
-      <TopBar title={`${MONTHS[d.getMonth()]} ${d.getFullYear()}`} left={<IconBtn name="menu" className="menu-btn" onClick={ui.openDrawer} />}>
+      <TopBar
+        title={`${MONTHS[d.getMonth()]} ${d.getFullYear()}`}
+        above={
+          <a className="ya-cal-link" href={YANDEX_CALENDAR_URL} target="_blank" rel="noreferrer" title="Открыть Яндекс Календарь">
+            <img src="./yandex-calendar.png" alt="Яндекс Календарь" />
+          </a>
+        } left={<IconBtn name="menu" className="menu-btn" onClick={ui.openDrawer} />}>
         <IconBtn name="chevL" size={18} onClick={() => shift(-1)} />
         <IconBtn name="chevR" size={18} onClick={() => shift(1)} />
         <IconBtn name="star" onClick={() => setDay(t)} title="Сегодня" />
         <IconBtn name="calendar" onClick={() => ui.openDate({ date: day }, (v) => v.date && setDay(v.date))} />
-        <a className="ya-cal-link" href={YANDEX_CALENDAR_URL} target="_blank" rel="noreferrer" title="Открыть Яндекс Календарь">
-          <YandexCalendarBadge day={parseKey(t).getDate()} />
-        </a>
       </TopBar>
       <div className="seg">
         {MODES.map(([k, l]) => (
@@ -204,16 +207,3 @@ export function CalendarView({ day, setDay }) {
   );
 }
 
-// Red tear-off calendar sheet on a pink tile, like the Yandex Calendar app icon, with today's date
-function YandexCalendarBadge({ day }) {
-  return (
-    <svg width="26" height="26" viewBox="0 0 30 30" aria-hidden="true">
-      <rect width="30" height="30" rx="8" fill="#f6c3b8" />
-      <path d="M8 9.5 Q15 7 22 9.5 L22.6 22 Q15 24.5 7.4 22 Z" fill="#c8311c" />
-      <path d="M7 8 Q15 5.5 23 8 L22.4 20.5 Q15 23 7.6 20.5 Z" fill="#ec4a2c" />
-      <text x="15" y="18.2" textAnchor="middle" fontSize="11" fontWeight="600" fill="#fff" fontFamily="'Golos Text', sans-serif">
-        {day}
-      </text>
-    </svg>
-  );
-}

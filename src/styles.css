@@ -2856,21 +2856,18 @@ textarea {
   padding: 18px 0;
 }
 
-/* Yandex Calendar icon in the calendar's top bar, links to Yandex Calendar */
+/* Yandex Calendar icon above the month title, links to Yandex Calendar */
 .ya-cal-link {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 34px;
-  height: 34px;
+  display: inline-block;
+  margin: 2px 0 6px;
+  line-height: 0;
+}
+.ya-cal-link img {
+  width: 40px;
+  height: 40px;
   border-radius: 10px;
+  transition: transform 0.15s;
 }
-.ya-cal-link:hover {
-  background: var(--hover, rgba(127, 127, 127, 0.12));
-}
-@media (max-width: 480px) {
-  /* the calendar's top bar has one button more: keep the month title whole on phones */
-  .topbar-actions:has(.ya-cal-link) .icon-btn {
-    width: 34px;
-  }
+.ya-cal-link:hover img {
+  transform: scale(1.06);
 }
