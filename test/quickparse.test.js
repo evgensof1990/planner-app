@@ -59,3 +59,16 @@ test('plain text stays untouched', () => {
   assert.equal(r.time, null);
   assert.equal(r.priority, 0);
 });
+
+test('voice phrasing: spoken time, duration word, command prefix', () => {
+  const r = q('Создай задачу на 14 30 продолжительностью 15 минут быстро разобраться с чат ботом для парков');
+  assert.equal(r.title, 'Быстро разобраться с чат ботом для парков');
+  assert.equal(r.time, '14:30');
+  assert.equal(r.date, '2026-10-26');
+  assert.equal(r.duration, 15);
+  assert.equal(q('встреча в 11 часов 30 минут').time, '11:30');
+  assert.equal(q('встреча в 11 часов 30 минут').duration, null);
+  assert.equal(q('напомни мне завтра в 10 позвонить в банк').title, 'Позвонить в банк');
+  assert.equal(q('встреча на 3 человека').time, null);
+  assert.equal(q('созвон на 30 минут').duration, 30);
+});

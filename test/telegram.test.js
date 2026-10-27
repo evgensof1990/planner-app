@@ -92,3 +92,21 @@ test('morning digest and review reminder go to the outbox once', async () => {
   assert.match(out[1].params.text, /обзор недели/);
   assert.equal(bot.takeOutbox().length, 0);
 });
+
+test('«Своё время»: the next message sets the time of that task', async () => {
+  const { store, bot } = await bound();
+  const [b] = await bot.handle(msg('отчёт до пятницы 2ч'));
+  const t = store.data.tasks.find((x) => x.title === 'отчёт');
+  const own = b.params.reply_markup.inline_keyboard.flat().find((k) => k.text.includes('Своё время'));
+  assert.equal(own.callback_data, 'c|' + t.id);
+  await bot.handle(cb(own.callback_data));
+  const out = await bot.handle(msg('завтра в 11 30'));
+  assert.equal(store.data.tasks.length, 1);
+  assert.equal(t.id, store.data.tasks[0].id);
+  assert.equal(store.data.tasks[0].time, '11:30');
+  assert.equal(store.data.tasks[0].duration, 120);
+  assert.equal(out[0].method, 'editMessageText');
+  // the message after that is a new task again
+  await bot.handle(msg('купить хлеб'));
+  assert.equal(store.data.tasks.length, 2);
+});

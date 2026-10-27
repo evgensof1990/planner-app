@@ -84,11 +84,12 @@ export class TelegramBot {
       if (msg.voice || msg.audio) return await this.onVoice(chat, voice);
       if (!text) return [this.say(chat, 'Пришлите задачу текстом или голосом.')];
       const cmd = text.match(/^\/(\w+)/)?.[1];
+      if (cmd) this.tg.await = null;
       if (cmd === 'start' || cmd === 'help') return [this.say(chat, HELP)];
       if (cmd === 'today') return [this.say(chat, this.dayText(todayKey()))];
       if (cmd === 'week') return [this.say(chat, this.weekText())];
       if (cmd === 'plan') return [this.planOffer(chat)];
-      return [this.addFromText(chat, text)];
+      return this.fromText(chat, text);
     } finally {
       this.save();
     }
@@ -116,7 +117,23 @@ export class TelegramBot {
       return [this.say(chat, 'Не удалось распознать голос: ' + e.message)];
     }
     if (!text) return [this.say(chat, 'Ничего не расслышал, попробуйте ещё раз.')];
-    return [this.say(chat, `🎙 «${esc(text)}»`), this.addFromText(chat, text)];
+    return [this.say(chat, `🎙 «${esc(text)}»`), ...this.fromText(chat, text)];
+  }
+
+  // After «Своё время» the next message is the time for that task, not a new task
+  fromText(chat, text) {
+    const w = this.tg.await;
+    this.tg.await = null;
+    const t = w && Date.now() < w.until && this.task(w.id);
+    if (!t || !alive(t)) return [this.addFromText(chat, text)];
+    const q = parseQuick(text, { projects: this.store.data.projects, tags: [] });
+    if (!q.date && !q.time) {
+      this.tg.await = w;
+      return [this.say(chat, 'Не понял время. Напишите, например, <i>в 11:30</i> или <i>завтра в 15</i>. /today — выйти.')];
+    }
+    this.store.mutate((n) => Object.assign(n.tasks.find((x) => x.id === t.id), { date: q.date, time: q.time, ...(q.duration ? { duration: q.duration } : {}) }));
+    const done = `✅ <b>${esc(t.title)}</b>\n${this.meta(this.task(t.id))}`;
+    return [this.edit(chat, w.mid, done), this.say(chat, done, [[{ text: '✏️ Изменить время', callback_data: `c|${t.id}` }]])];
   }
 
   addFromText(chat, text) {
@@ -153,7 +170,9 @@ export class TelegramBot {
     });
     const head = `✅ <b>${esc(t.title)}</b>\n${this.meta(t)}`;
     if (!t.time && (t.duration || t.deadline)) return this.slotOffer(chat, t, head + '\n\nКогда сделать?');
-    const keys = [[{ text: '🕒 Подобрать время', callback_data: `p|${t.id}` }, { text: '↩️ Отменить', callback_data: `d|${t.id}` }]];
+    const keys = t.time
+      ? [[{ text: '✏️ Изменить время', callback_data: `c|${t.id}` }, { text: '↩️ Отменить', callback_data: `d|${t.id}` }]]
+      : [[{ text: '🕒 Подобрать время', callback_data: `p|${t.id}` }, { text: '✏️ Своё время', callback_data: `c|${t.id}` }], [{ text: '↩️ Отменить', callback_data: `d|${t.id}` }]];
     return this.say(chat, head, keys);
   }
 
@@ -173,7 +192,8 @@ export class TelegramBot {
   slotOffer(chat, t, text, messageId) {
     const slots = this.slotsFor(t);
     const keys = slots.map((s) => [{ text: (s.late ? '⚠️ ' : '') + slotLabel(s), callback_data: `s|${t.id}|${s.date}|${s.time}|${s.duration}` }]);
-    keys.push([{ text: 'Без времени', callback_data: `n|${t.id}` }, { text: '↩️ Отменить', callback_data: `d|${t.id}` }]);
+    keys.push([{ text: '✏️ Своё время', callback_data: `c|${t.id}` }, { text: 'Без времени', callback_data: `n|${t.id}` }]);
+    keys.push([{ text: '↩️ Отменить', callback_data: `d|${t.id}` }]);
     const body = slots.length ? text : text + '\n\nСвободных окон в ближайшие три недели нет.';
     return messageId ? this.edit(chat, messageId, body, keys) : this.say(chat, body, keys);
   }
@@ -193,6 +213,12 @@ export class TelegramBot {
       const s = { date, time, duration: +duration };
       return [ack('Запланировано'), this.edit(chat, mid, `✅ <b>${esc(t.title)}</b>\n🕒 ${slotLabel(s)}`)];
     }
+    if (kind === 'c') {
+      this.tg.await = { id, mid, until: Date.now() + 15 * 6e4 };
+      const hint = 'Напишите или скажите, когда: <i>в 11:30</i>, <i>завтра в 15</i>, <i>в пятницу в 9 утра</i>, <i>28.10 в 18:00 на 45 минут</i>';
+      return [ack(), this.edit(chat, mid, `<b>${esc(t.title)}</b>\n${hint}`, [[{ text: '🕒 Подобрать время', callback_data: `p|${id}` }, { text: 'Без времени', callback_data: `n|${id}` }]])];
+    }
+    if (kind === 'n' || kind === 'p') this.tg.await = null;
     if (kind === 'n') return [ack(), this.edit(chat, mid, `✅ <b>${esc(t.title)}</b>\n${this.meta(t)}`)];
     if (kind === 'p') return [ack(), this.slotOffer(chat, t, `<b>${esc(t.title)}</b>\nКогда сделать?`, mid)];
     if (kind === 'd') {
