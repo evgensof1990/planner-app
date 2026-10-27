@@ -1,9 +1,11 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { TopBar, IconBtn, useUi } from './components.jsx';
+import Icon from './icons.jsx';
 import { useStore, PRIORITY_COLORS } from './store.jsx';
 import { layoutDay } from './daylayout.js';
-import { calendarItems, onCalendarsChange, refreshStale, taskColors } from './ical.js';
-import { MONTHS, WD, WD_MON, addDays, monthGrid, parseKey, todayKey, pad, weekStart } from './date.js';
+import { calendarItems, onCalendarsChange, refreshStale, taskColors, taskCalendarName } from './ical.js';
+import { areaOf } from './scheduler.js';
+import { MONTHS, MONTHS_GEN, REPEATS, WD, WD_MON, addDays, monthGrid, parseKey, todayKey, pad, weekStart } from './date.js';
 
 const HOUR = 54;
 const YANDEX_CALENDAR_URL = 'https://calendar.yandex.ru/week?uid=474876932';
@@ -46,7 +48,14 @@ export function CalendarView({ day, setDay }) {
     return c ? { '--ev': c } : undefined;
   };
   const hm = (min) => `${pad(Math.floor(min / 60) % 24)}:${pad(min % 60)}`;
-  const open = (x) => (x.ext ? ui.toast(`${x.calName}: ${x.title}${x.time ? ', ' + x.time : ''}`) : ui.openTask(x.id));
+  // a click on an event opens a small card next to it, as in Yandex Calendar
+  const [pop, setPop] = useState(null);
+  const closedAt = useRef(0);
+  const open = (x, e, end) => setPop({ x, end, color: colorOf(x) || PRIORITY_COLORS[x.priority], rect: e.currentTarget.getBoundingClientRect() });
+  const closePop = () => {
+    closedAt.current = Date.now();
+    setPop(null);
+  };
   const d = parseKey(day);
   const now = new Date();
 
@@ -141,7 +150,7 @@ export function CalendarView({ day, setDay }) {
                 {tasks
                   .filter((x) => x.date === k && !x.time)
                   .map((x) => (
-                    <button key={x.id} className={'cal-ev allday' + (x.done ? ' done' : '')} style={tint(x)} onClick={() => open(x)}>
+                    <button key={x.id} className={'cal-ev allday' + (x.done ? ' done' : '')} style={tint(x)} onClick={(e) => open(x, e)}>
                       {label(x)}
                     </button>
                   ))}
@@ -162,7 +171,8 @@ export function CalendarView({ day, setDay }) {
                   key={k}
                   className="cal-col"
                   onClick={(e) => {
-                    if (e.target !== e.currentTarget) return;
+                    // the first click outside an open card only closes it
+                    if (e.target !== e.currentTarget || Date.now() - closedAt.current < 400) return;
                     const y = e.nativeEvent.offsetY;
                     const h = Math.min(23, Math.floor(y / HOUR));
                     ui.quickAdd({ date: k, time: pad(h) + ':00' });
@@ -189,7 +199,7 @@ export function CalendarView({ day, setDay }) {
                           ...tint(x),
                         }}
                         title={`${x.time} ${x.title}`}
-                        onClick={() => open(x)}
+                        onClick={(e) => open(x, e, end)}
                         onContextMenu={(e) => {
                           e.preventDefault();
                           if (!x.ext) toggleTask(x.id);
@@ -216,6 +226,131 @@ export function CalendarView({ day, setDay }) {
           </div>
         </>
       )}
+      {pop && <EventCard {...pop} onClose={closePop} />}
+    </div>
+  );
+}
+
+const WD_FULL = ['Воскресенье', 'Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота'];
+
+function EventCard({ x: item, end, color, rect, onClose }) {
+  const { data, toggleTask, deleteTask, restoreTask, addTask } = useStore();
+  const ui = useUi();
+  const ref = useRef();
+  const [pos, setPos] = useState({ top: -999, left: -999 });
+  const task = item.ext ? item : data.tasks.find((t) => t.id === item.id);
+
+  useLayoutEffect(() => {
+    const m = ref.current.getBoundingClientRect();
+    const W = window.innerWidth;
+    const H = window.innerHeight;
+    // beside the event when there is room, else centred over it
+    let left = rect.right + 10;
+    if (left + m.width > W - 8) left = rect.left - m.width - 10;
+    if (left < 8) left = Math.max(8, Math.min(W - m.width - 8, rect.left + rect.width / 2 - m.width / 2));
+    const top = Math.max(8, Math.min(rect.top - 8, H - m.height - 8));
+    setPos({ top, left });
+  }, [rect, task?.done]);
+
+  useEffect(() => {
+    const down = (e) => !ref.current?.contains(e.target) && !e.target.closest?.('.cal-ev') && onClose();
+    const key = (e) => {
+      if (e.key !== 'Escape') return;
+      e.stopImmediatePropagation();
+      onClose();
+    };
+    document.addEventListener('mousedown', down);
+    window.addEventListener('keydown', key, true);
+    return () => {
+      document.removeEventListener('mousedown', down);
+      window.removeEventListener('keydown', key, true);
+    };
+  }, [onClose]);
+
+  if (!task) return null;
+  const d = parseKey(task.date);
+  const hm = (min) => `${pad(Math.floor(min / 60) % 24)}:${pad(min % 60)}`;
+  const when = `${WD_FULL[d.getDay()]}, ${d.getDate()} ${MONTHS_GEN[d.getMonth()]}` + (task.time ? `, ${task.time}${end ? ' — ' + hm(end) : ''}` : ', весь день');
+  const project = !item.ext && data.projects.find((p) => p.id === task.projectId);
+  const calName = item.ext ? task.calName : taskCalendarName(task, data.tasks, data.projects) || (areaOf(task, data.projects) === 'work' ? 'Работа' : 'Личное');
+  const repeat = !item.ext && task.repeat && REPEATS.find((r) => r[0] === task.repeat)?.[1];
+  const edit = () => {
+    onClose();
+    ui.openTask(task.id);
+  };
+  const duplicate = () => {
+    const { id, createdAt, order, doneAt, seed, ...rest } = task;
+    const copy = addTask({ ...rest, done: false });
+    onClose();
+    ui.openTask(copy.id);
+  };
+  const remove = () => {
+    deleteTask(task.id);
+    onClose();
+    ui.toast('Задача перемещена в корзину', { label: 'Отменить', fn: () => restoreTask(task.id) });
+  };
+
+  return (
+    <div className="ev-card" ref={ref} style={pos} role="dialog">
+      <div className="ev-card-head">
+        <h3 className={task.done ? 'done' : ''} onClick={item.ext ? undefined : edit}>
+          {task.title}
+        </h3>
+        {color && <i className="ev-card-dot" style={{ '--ev': color }} />}
+        <button className="icon-btn sm" onClick={onClose} aria-label="Закрыть">
+          <Icon name="close" size={18} />
+        </button>
+      </div>
+      <dl className="ev-card-rows">
+        <dt>Время и дата</dt>
+        <dd>{when}</dd>
+        {repeat && (
+          <>
+            <dt>Повтор</dt>
+            <dd>{repeat}</dd>
+          </>
+        )}
+        {project && (
+          <>
+            <dt>Проект</dt>
+            <dd>{project.name}</dd>
+          </>
+        )}
+        <dt>Календарь</dt>
+        <dd>
+          <i className="ev-card-cal" style={{ background: color || 'var(--text3)' }} />
+          {calName || 'Без календаря'}
+        </dd>
+        {task.notes && (
+          <>
+            <dt>Описание</dt>
+            <dd className="ev-card-notes">{task.notes}</dd>
+          </>
+        )}
+      </dl>
+      <div className="ev-card-actions">
+        {item.ext ? (
+          <a className="ev-card-btn wide" href={YANDEX_CALENDAR_URL} target="_blank" rel="noreferrer">
+            Открыть в Яндекс Календаре
+          </a>
+        ) : (
+          <>
+            <button className={'ev-card-btn wide' + (task.done ? '' : ' accent')} onClick={() => toggleTask(task.id)}>
+              <Icon name={task.done ? 'restore' : 'check'} size={18} /> {task.done ? 'Вернуть' : 'Выполнено'}
+            </button>
+            <div style={{ flex: 1 }} />
+            <button className="ev-card-btn" onClick={duplicate} title="Дублировать" aria-label="Дублировать">
+              <Icon name="copy" size={20} />
+            </button>
+            <button className="ev-card-btn" onClick={remove} title="Удалить" aria-label="Удалить">
+              <Icon name="trash" size={20} />
+            </button>
+            <button className="ev-card-btn" onClick={edit} title="Редактировать" aria-label="Редактировать">
+              <Icon name="edit" size={20} />
+            </button>
+          </>
+        )}
+      </div>
     </div>
   );
 }
