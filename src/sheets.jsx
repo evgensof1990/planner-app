@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import Icon from './icons.jsx';
-import { Sheet, SheetHeader, Checkbox, useUi, DateChip } from './components.jsx';
+import { Sheet, SheetHeader, Checkbox, useUi, DateChip, AreaToggle } from './components.jsx';
 import { useStore, PRIORITY_COLORS, PRIORITY_NAMES } from './store.jsx';
 import { MONTHS, WD_MON, REPEATS, addDays, monthGrid, parseKey, pad, relLabel, todayKey } from './date.js';
 import { parseQuick } from './quickparse.js';
-import { suggestSlots, slotLabel, DEFAULT_DURATION } from './scheduler.js';
+import { suggestSlots, slotLabel, areaOf, DEFAULT_DURATION } from './scheduler.js';
 import { busyEvents } from './ical.js';
 import { voiceAvailable, startRecording, recognize } from './voice.js';
 
@@ -126,6 +126,7 @@ export function QuickAdd({ defaults = {}, onClose }) {
         </button>
       </div>
       <div className="qa-chips">
+        <AreaToggle value={areaOf(eff, data.projects)} onChange={(area) => setFF({ ...f, area })} />
         {eff.date && (
           <span className="chip accent">
             {relLabel(eff.date)}
@@ -906,6 +907,7 @@ export function TaskDetail({ id, onClose }) {
           </span>
           <Icon name="chevD" size={16} />
         </button>
+        <AreaToggle value={areaOf(task, data.projects)} onChange={(area) => up({ area })} />
         <div style={{ flex: 1 }} />
         <button className="icon-btn" onClick={() => ui.openTags(task.tags, (tags) => up({ tags }))}>
           <Icon name="tag" />

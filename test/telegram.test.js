@@ -118,3 +118,14 @@ test('«Своё время»: the next message sets the time, then the draft is
   assert.equal(store.data.tasks[0].time, '15:00');
   assert.equal(store.data.tasks.length, 1);
 });
+
+test('«Сделать рабочей» switches a draft to the work calendar before saving', async () => {
+  const { store, bot } = await bound();
+  const [a] = await bot.handle(msg('созвон с подрядчиком завтра в 11'));
+  assert.match(a.params.text, /личная/);
+  const [, shown] = await bot.handle(cb(btn(a, /Сделать рабочей/)));
+  assert.match(shown.params.text, /рабочая/);
+  assert.ok(keysOf(shown).some((k) => /Сделать личной/.test(k.text)));
+  await bot.handle(cb(btn(shown, /Создать/)));
+  assert.equal(store.data.tasks.find((x) => x.title === 'созвон с подрядчиком').area, 'work');
+});

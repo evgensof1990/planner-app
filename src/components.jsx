@@ -254,3 +254,19 @@ export function DateChip({ task, onClick }) {
     </button>
   );
 }
+
+// Personal / work switch: decides the Yandex calendar and the windows for a task
+export function AreaToggle({ value, onChange }) {
+  return (
+    <div className="area-toggle" role="radiogroup" aria-label="Тип задачи">
+      {[
+        ['personal', 'Личная'],
+        ['work', 'Рабочая'],
+      ].map(([k, label]) => (
+        <button key={k} role="radio" aria-checked={value === k} className={value === k ? 'on' : ''} onClick={() => value !== k && onChange(k)}>
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+}
