@@ -313,11 +313,12 @@ export class TelegramBot {
     const d = this.store.data;
     const loose = this.untimed(day);
     if (!loose.length) return this.say(chat, 'На сегодня всё уже по времени 👌');
-    const plan = planBatch(loose, { day, tasks: d.tasks.filter(alive), projects: d.projects, events: this.events(Date.now() - 864e5, Date.now() + 2 * 864e5), rules: d.settings.planRules });
+    // what does not fit today goes to the next free windows
+    const plan = planBatch(loose, { day, spill: true, tasks: d.tasks.filter(alive), projects: d.projects, events: this.events(Date.now() - 864e5, Date.now() + 22 * 864e5), rules: d.settings.planRules });
     const key = uid();
     this.tg.plans = { [key]: plan.filter((p) => p.slot).map((p) => [p.task.id, p.slot.date, p.slot.time, p.slot.duration]) };
-    const lines = ['<b>Предлагаю на сегодня:</b>'];
-    for (const p of plan) lines.push(p.slot ? `🕒 ${p.slot.time} ${esc(p.task.title)} (${dur(p.slot.duration)})` : `— ${esc(p.task.title)}: сегодня окна нет`);
+    const lines = ['<b>Предлагаю:</b>'];
+    for (const p of plan) lines.push(p.slot ? `🕒 ${p.slot.date === day ? p.slot.time : slotLabel(p.slot)} ${esc(p.task.title)} (${dur(p.slot.duration)})` : `— ${esc(p.task.title)}: свободного окна нет`);
     const keys = this.tg.plans[key].length ? [[{ text: '✅ Принять', callback_data: `pa|${key}` }]] : [];
     return this.say(chat, lines.join('\n'), keys);
   }

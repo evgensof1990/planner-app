@@ -165,7 +165,8 @@ export function PlanSheet({ days, onClose }) {
     const out = [];
     for (const day of days) {
       const loose = tasks.filter((x) => live(x) && !x.done && !x.time && x.date && (x.date === day || (day === t && x.date < t)));
-      const r = planBatch(loose, { day, tasks: [...tasks, ...placed], projects: data.projects, events, rules: data.settings.planRules });
+      // a single day: what does not fit (late in the evening, say) goes to the next free windows
+      const r = planBatch(loose, { day, spill: days.length === 1, tasks: [...tasks, ...placed], projects: data.projects, events, rules: data.settings.planRules });
       r.forEach((x) => x.slot && placed.push({ id: x.task.id + ':p', ...x.slot }));
       out.push(...r);
     }
