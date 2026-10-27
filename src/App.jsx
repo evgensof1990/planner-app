@@ -8,7 +8,7 @@ import { QuickAdd, DateSheet, ProjectPicker, TagPicker, TaskDetail, PromptSheet,
 import { ListView, PlansView, ProjectView, SearchView, TrashView, ArchiveView, FilterView, NotificationsView } from './views.jsx';
 import { HabitsView } from './habits.jsx';
 import { GoalsView, ReviewView, PlanSheet } from './goals.jsx';
-import { CalendarView } from './calendar.jsx';
+import { CalendarView, YandexCalendarLink } from './calendar.jsx';
 import { PomodoroView, PomoStatsView, pomoEndReminder } from './pomodoro.jsx';
 import { Sidebar } from './sidebar.jsx';
 import { SettingsSheet } from './settings.jsx';
@@ -361,6 +361,7 @@ function Toolbar({ route, ui }) {
   if (route.view === 'pomo' || route.view === 'pomoStats') return null;
   return (
     <div className="toolbar">
+      {route.view === 'calendar' && <YandexCalendarLink className="tb-yandex" />}
       {items.map(([k, label, ic]) =>
         k === 'search' ? (
           <button key={k} className="tb-search" onClick={() => ui.go({ view: 'search' })}>

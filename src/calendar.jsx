@@ -7,6 +7,14 @@ import { MONTHS, WD, WD_MON, addDays, monthGrid, parseKey, todayKey, pad, weekSt
 
 const HOUR = 54;
 const YANDEX_CALENDAR_URL = 'https://calendar.yandex.ru/week?uid=474876932';
+
+export function YandexCalendarLink({ className = '' }) {
+  return (
+    <a className={'ya-cal-link ' + className} href={YANDEX_CALENDAR_URL} target="_blank" rel="noreferrer" title="Открыть Яндекс Календарь">
+      <img src="./yandex-calendar.png" alt="Яндекс Календарь" />
+    </a>
+  );
+}
 const MODES = [
   ['day', 'День', 1],
   ['3day', '3 дня', 3],
@@ -63,11 +71,14 @@ export function CalendarView({ day, setDay }) {
     <div className="view">
       <TopBar
         title={`${MONTHS[d.getMonth()]} ${d.getFullYear()}`}
-        above={
-          <a className="ya-cal-link" href={YANDEX_CALENDAR_URL} target="_blank" rel="noreferrer" title="Открыть Яндекс Календарь">
-            <img src="./yandex-calendar.png" alt="Яндекс Календарь" />
-          </a>
-        } left={<IconBtn name="menu" className="menu-btn" onClick={ui.openDrawer} />}>
+        left={
+          <>
+            <IconBtn name="menu" className="menu-btn" onClick={ui.openDrawer} />
+            {/* on wide screens the link sits in the toolbar instead (App.jsx) */}
+            <YandexCalendarLink className="phone-only" />
+          </>
+        }
+      >
         <IconBtn name="chevL" size={18} onClick={() => shift(-1)} />
         <IconBtn name="chevR" size={18} onClick={() => shift(1)} />
         <IconBtn name="star" onClick={() => setDay(t)} title="Сегодня" />
