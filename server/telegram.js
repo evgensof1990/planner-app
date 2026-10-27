@@ -4,7 +4,7 @@
 // Nothing here talks to Telegram directly.
 import { randomInt } from 'node:crypto';
 import { parseQuick } from '../src/quickparse.js';
-import { suggestSlots, slotLabel, planBatch, DEFAULT_DURATION } from '../src/scheduler.js';
+import { suggestSlots, slotLabel, planBatch, areaOf, DEFAULT_DURATION } from '../src/scheduler.js';
 import { addDays, keyOf, parseKey, todayKey, relLabel, WD } from '../src/date.js';
 
 const uid = () => Math.random().toString(36).slice(2, 9) + Date.now().toString(36).slice(-4);
@@ -178,9 +178,14 @@ export class TelegramBot {
     return this.confirm(chat, t);
   }
 
+  // switches a draft between the personal and the work calendar
+  areaKey(t) {
+    return { text: areaOf(t, this.store.data.projects) === 'work' ? '🏠 Сделать личной' : '💼 Сделать рабочей', callback_data: `a|${t.id}` };
+  }
+
   confirm(chat, t, messageId) {
     const keys = [
-      [{ text: '✅ Создать', callback_data: `ok|${t.id}` }],
+      [{ text: '✅ Создать', callback_data: `ok|${t.id}` }, this.areaKey(t)],
       t.time ? [{ text: '✏️ Другое время', callback_data: `c|${t.id}` }] : [{ text: '🕒 Подобрать время', callback_data: `p|${t.id}` }, { text: '✏️ Своё время', callback_data: `c|${t.id}` }],
       [{ text: '↩️ Отменить', callback_data: `d|${t.id}` }],
     ];
@@ -214,6 +219,7 @@ export class TelegramBot {
     if (t.duration) parts.push(`⏱ ${dur(t.duration)}`);
     if (t.deadline) parts.push(`⏰ до ${relLabel(t.deadline).toLowerCase()}`);
     if (p) parts.push(`${p.emoji || '📁'} ${esc(p.name)}`);
+    parts.push(areaOf(t, d.projects) === 'work' ? '💼 рабочая' : '🏠 личная');
     if (t.priority) parts.push('🚩'.repeat(t.priority));
     return parts.join(' · ');
   }
@@ -222,7 +228,7 @@ export class TelegramBot {
     const slots = this.slotsFor(t);
     const keys = slots.map((s) => [{ text: (s.late ? '⚠️ ' : '') + slotLabel(s), callback_data: `s|${t.id}|${s.date}|${s.time}|${s.duration}` }]);
     keys.push([{ text: '✏️ Своё время', callback_data: `c|${t.id}` }, { text: 'Без времени', callback_data: `n|${t.id}` }]);
-    keys.push([{ text: '↩️ Отменить', callback_data: `d|${t.id}` }]);
+    keys.push(this.drafts[t.id] ? [this.areaKey(t), { text: '↩️ Отменить', callback_data: `d|${t.id}` }] : [{ text: '↩️ Отменить', callback_data: `d|${t.id}` }]);
     const body = slots.length ? text : text + '\n\nСвободных окон в ближайшие три недели нет.';
     return messageId ? this.edit(chat, messageId, body, keys) : this.say(chat, body, keys);
   }
@@ -246,6 +252,18 @@ export class TelegramBot {
       this.tg.await = { id, mid, until: Date.now() + 15 * 6e4 };
       const hint = 'Напишите или скажите, когда: <i>в 11:30</i>, <i>завтра в 15</i>, <i>в пятницу в 9 утра</i>, <i>28.10 в 18:00 на 45 минут</i>';
       return [ack(), this.edit(chat, mid, `<b>${esc(t.title)}</b>\n${hint}`, [[{ text: '🕒 Подобрать время', callback_data: `p|${id}` }, { text: 'Без времени', callback_data: `n|${id}` }], [{ text: '↩️ Отменить', callback_data: `d|${id}` }]])];
+    }
+    if (kind === 'a') {
+      const dr = this.drafts[id];
+      const area = areaOf(t, this.store.data.projects) === 'work' ? 'personal' : 'work';
+      if (!dr) {
+        this.store.mutate((n) => (n.tasks.find((x) => x.id === id).area = area));
+        return [ack(area === 'work' ? 'Теперь рабочая' : 'Теперь личная'), this.edit(chat, mid, `✅ <b>${esc(t.title)}</b>\n${this.meta(this.task(id))}`)];
+      }
+      dr.task.area = area;
+      // windows differ for work and personal tasks, so slots are offered again
+      const reshow = !dr.task.time && (dr.task.duration || dr.task.deadline) ? this.slotOffer(chat, dr.task, `<b>${esc(dr.task.title)}</b>\n${this.meta(dr.task)}\n\nКогда сделать?`, mid) : this.confirm(chat, dr.task, mid);
+      return [ack(area === 'work' ? 'Рабочая' : 'Личная'), reshow];
     }
     if (kind === 'n' || kind === 'p') this.tg.await = null;
     if (kind === 'n' || kind === 'ok') {

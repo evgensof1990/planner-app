@@ -4,6 +4,7 @@ import Icon from './icons.jsx';
 import { UiCtx, Menu } from './components.jsx';
 import { useStore, forgetJustDone, PRIORITY_COLORS, PRIORITY_NAMES } from './store.jsx';
 import { todayKey, setWeekStart } from './date.js';
+import { areaOf } from './scheduler.js';
 import { QuickAdd, DateSheet, ProjectPicker, TagPicker, TaskDetail, PromptSheet, ProjectEdit, HabitEdit, ConfirmSheet, SlotSheet } from './sheets.jsx';
 import { ListView, PlansView, ProjectView, SearchView, TrashView, ArchiveView, FilterView, NotificationsView } from './views.jsx';
 import { HabitsView } from './habits.jsx';
@@ -127,6 +128,9 @@ export default function App() {
       { divider: true },
       ...[3, 2, 1, 0].map((p) => ({ icon: 'flag', color: PRIORITY_COLORS[p] || 'var(--text2)', label: PRIORITY_NAMES[p], active: task.priority === p, onClick: () => store.updateTask(task.id, { priority: p }) })),
       { divider: true },
+      areaOf(task, store.data.projects) === 'work'
+        ? { icon: 'inbox', label: 'Сделать личной', onClick: () => store.updateTask(task.id, { area: 'personal' }) }
+        : { icon: 'layers', label: 'Сделать рабочей', onClick: () => store.updateTask(task.id, { area: 'work' }) },
       { icon: 'noProject', label: 'Перенести в…', onClick: () => ui.openProjectPicker(task.projectId, (projectId, sectionId) => store.updateTask(task.id, { projectId, sectionId })) },
       { icon: 'sub', label: 'Добавить подзадачу', onClick: () => ui.quickAdd({ parentId: task.id, projectId: task.projectId, sectionId: task.sectionId }) },
       {
