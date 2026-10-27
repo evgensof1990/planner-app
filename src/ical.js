@@ -76,7 +76,7 @@ export async function refreshCalendar(cal) {
 
 export function refreshStale(calendars = []) {
   calendars.filter((c) => c.on !== false && (!cache[c.id] || Date.now() - (cache[c.id].fetchedAt || 0) > 30 * 6e4)).forEach(refreshCalendar);
-  if (isServer(getCfg()) && (!cache[SERVER]?.colors || Date.now() - (cache[SERVER]?.fetchedAt || 0) > 5 * 6e4)) refreshServerEvents();
+  if (isServer(getCfg()) && (!cache[SERVER]?.calNames || Date.now() - (cache[SERVER]?.fetchedAt || 0) > 5 * 6e4)) refreshServerEvents();
 }
 
 // Yandex Calendar events read by the own server; its task calendars are skipped (those events are tasks already)
@@ -89,11 +89,17 @@ export async function refreshServerEvents() {
     const { events } = await api(cfg, `/api/events?from=${now - 30 * 864e5}&to=${now + 60 * 864e5}`);
     // colours of the task calendars in Yandex, by task id (event UID is planner-<task id>)
     const colors = {};
-    for (const e of events) if (e.own && e.color && e.uid?.startsWith('planner-')) colors[e.uid.slice(8)] = e.color.slice(0, 7);
+    const calNames = {};
+    for (const e of events)
+      if (e.own && e.uid?.startsWith('planner-')) {
+        if (e.color) colors[e.uid.slice(8)] = e.color.slice(0, 7);
+        calNames[e.uid.slice(8)] = e.calName;
+      }
     cache[SERVER] = {
       fetchedAt: now,
       error: null,
       colors,
+      calNames,
       events: events
         .filter((e) => !e.own)
         .map((e) => {
@@ -113,6 +119,15 @@ export function taskColors(tasks, projects) {
   const byArea = {};
   for (const t of tasks) if (own[t.id]) byArea[areaOf(t, projects)] ||= own[t.id];
   return (t) => own[t.id] || byArea[areaOf(t, projects)] || null;
+}
+
+// Name of the Yandex calendar a task goes to: of its own event, else of its area's calendar
+export function taskCalendarName(task, tasks, projects) {
+  const names = cache[SERVER]?.calNames || {};
+  if (names[task.id]) return names[task.id];
+  const area = areaOf(task, projects);
+  const t = tasks.find((x) => names[x.id] && areaOf(x, projects) === area);
+  return t ? names[t.id] : null;
 }
 
 // Items in the shape the calendar view draws
