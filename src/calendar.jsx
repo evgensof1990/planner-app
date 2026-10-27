@@ -31,10 +31,12 @@ export function CalendarView({ day, setDay }) {
   const tasks = [...data.tasks.filter((x) => alive(x) && x.date), ...calendarItems(data.settings.calendars)];
   const taskColor = taskColors(data.tasks, data.projects);
   const colorOf = (x) => (x.ext ? x.color : taskColor(x));
-  const tint = (x, a) => {
-    const c = colorOf(x);
-    return c ? { background: c + a } : undefined;
+  // Events are filled with a pastel of their calendar's colour, as in Yandex Calendar (see .cal-ev in styles.css)
+  const tint = (x) => {
+    const c = colorOf(x) || (!x.ext && PRIORITY_COLORS[x.priority]);
+    return c ? { '--ev': c } : undefined;
   };
+  const hm = (min) => `${pad(Math.floor(min / 60) % 24)}:${pad(min % 60)}`;
   const open = (x) => (x.ext ? ui.toast(`${x.calName}: ${x.title}${x.time ? ', ' + x.time : ''}`) : ui.openTask(x.id));
   const d = parseKey(day);
   const now = new Date();
@@ -99,7 +101,7 @@ export function CalendarView({ day, setDay }) {
               >
                 <span className="cm-n">{parseKey(k).getDate()}</span>
                 {list.slice(0, 3).map((x) => (
-                  <span key={x.id} className={'cm-ev' + (x.done ? ' done' : '')} style={tint(x, '33')}>
+                  <span key={x.id} className={'cm-ev' + (x.done ? ' done' : '')} style={tint(x)}>
                     {x.title}
                   </span>
                 ))}
@@ -126,7 +128,7 @@ export function CalendarView({ day, setDay }) {
                 {tasks
                   .filter((x) => x.date === k && !x.time)
                   .map((x) => (
-                    <button key={x.id} className={'cal-ev allday' + (x.done ? ' done' : '')} style={tint(x, '33')} onClick={() => open(x)}>
+                    <button key={x.id} className={'cal-ev allday' + (x.done ? ' done' : '')} style={tint(x)} onClick={() => open(x)}>
                       {x.title}
                     </button>
                   ))}
@@ -159,18 +161,19 @@ export function CalendarView({ day, setDay }) {
                   {k === t && <div className="cal-now" style={{ top: ((now.getHours() * 60 + now.getMinutes()) / 60) * HOUR }} />}
                   {layoutDay(tasks.filter((x) => x.date === k && x.time)).map(({ x, start, end, col, cols }) => {
                     const height = ((end - start) / 60) * HOUR - 2;
+                    // tall enough for the time range on its own line, like Yandex Calendar
+                    const tall = height >= 40;
                     return (
                       <button
                         key={x.id}
-                        className={'cal-ev' + (x.done ? ' done' : '') + (height < 34 ? ' short' : '')}
+                        className={'cal-ev' + (x.done ? ' done' : '') + (tall ? ' tall' : height < 18 ? ' tiny' : '')}
                         style={{
                           top: (start / 60) * HOUR + 1,
                           height,
                           left: `calc(${(col / cols) * 100}% + 2px)`,
                           width: `calc(${100 / cols}% - 4px)`,
                           right: 'auto',
-                          borderLeftColor: colorOf(x) || PRIORITY_COLORS[x.priority] || 'var(--accent)',
-                          ...tint(x, '30'),
+                          ...tint(x),
                         }}
                         title={`${x.time} ${x.title}`}
                         onClick={() => open(x)}
@@ -179,7 +182,18 @@ export function CalendarView({ day, setDay }) {
                           if (!x.ext) toggleTask(x.id);
                         }}
                       >
-                        <b>{x.time}</b> {x.title}
+                        {tall ? (
+                          <>
+                            <span className="ev-time">
+                              {x.time} – {hm(end)}
+                            </span>
+                            <span className="ev-title">{x.title}</span>
+                          </>
+                        ) : (
+                          <>
+                            <span className="ev-time">{x.time}</span> <span className="ev-title">{x.title}</span>
+                          </>
+                        )}
                       </button>
                     );
                   })}
