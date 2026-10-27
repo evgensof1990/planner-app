@@ -76,7 +76,7 @@ export async function refreshCalendar(cal) {
 
 export function refreshStale(calendars = []) {
   calendars.filter((c) => c.on !== false && (!cache[c.id] || Date.now() - (cache[c.id].fetchedAt || 0) > 30 * 6e4)).forEach(refreshCalendar);
-  if (isServer(getCfg()) && Date.now() - (cache[SERVER]?.fetchedAt || 0) > 5 * 6e4) refreshServerEvents();
+  if (isServer(getCfg()) && (!cache[SERVER]?.colors || Date.now() - (cache[SERVER]?.fetchedAt || 0) > 5 * 6e4)) refreshServerEvents();
 }
 
 // Yandex Calendar events read by the own server; its task calendars are skipped (those events are tasks already)

@@ -1,7 +1,8 @@
 import { createRoot } from 'react-dom/client';
-import '@fontsource/inter/400.css';
-import '@fontsource/inter/500.css';
-import '@fontsource/inter/600.css';
+// Golos Text: close to Yandex Sans of Yandex Calendar, free (OFL), bundled for offline use
+import '@fontsource/golos-text/400.css';
+import '@fontsource/golos-text/500.css';
+import '@fontsource/golos-text/600.css';
 import './styles.css';
 import { StoreProvider } from './store.jsx';
 import App from './App.jsx';

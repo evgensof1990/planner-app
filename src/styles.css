@@ -33,7 +33,7 @@ body,
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font-family: Inter, Roboto, -apple-system, 'Segoe UI', sans-serif;
+  font-family: 'Golos Text', Roboto, -apple-system, 'Segoe UI', sans-serif;
   font-size: 15px;
   overscroll-behavior: none;
 }
@@ -1616,7 +1616,7 @@ textarea {
   background: var(--accent-dim2);
   border-left: 3px solid var(--accent);
   border-radius: 5px;
-  font-size: 11.5px;
+  font-size: 12.5px;
   text-align: left;
   padding: 3px 5px;
   overflow: hidden;
@@ -1625,8 +1625,7 @@ textarea {
   box-shadow: 0 0 0 1px var(--bg);
 }
 .cal-ev b {
-  font-weight: 600;
-  color: var(--accent-text);
+  font-weight: 500;
 }
 .cal-ev.short {
   white-space: nowrap;
