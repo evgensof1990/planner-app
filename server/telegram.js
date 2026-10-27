@@ -67,7 +67,7 @@ export class TelegramBot {
   }
 
   task(id) {
-    return this.store.data.tasks.find((t) => t.id === id);
+    return this.tg.drafts?.[id]?.task || this.store.data.tasks.find((t) => t.id === id);
   }
 
   // ---------- incoming ----------
@@ -131,15 +131,28 @@ export class TelegramBot {
       this.tg.await = w;
       return [this.say(chat, 'Не понял время. Напишите, например, <i>в 11:30</i> или <i>завтра в 15</i>. /today — выйти.')];
     }
-    this.store.mutate((n) => Object.assign(n.tasks.find((x) => x.id === t.id), { date: q.date, time: q.time, ...(q.duration ? { duration: q.duration } : {}) }));
+    const patch = { date: q.date, time: q.time, ...(q.duration ? { duration: q.duration } : {}) };
+    if (this.drafts[t.id]) {
+      // still a draft: show it again with the new time and let the user confirm
+      Object.assign(t, patch);
+      return [this.edit(chat, w.mid, `<b>${esc(t.title)}</b>\n${this.meta(t)}`), this.confirm(chat, t)];
+    }
+    this.store.mutate((n) => Object.assign(n.tasks.find((x) => x.id === t.id), patch));
     const done = `✅ <b>${esc(t.title)}</b>\n${this.meta(this.task(t.id))}`;
     return [this.edit(chat, w.mid, done), this.say(chat, done, [[{ text: '✏️ Изменить время', callback_data: `c|${t.id}` }]])];
+  }
+
+  // A new task stays a draft until the user confirms it or picks a time
+  get drafts() {
+    const tg = this.tg;
+    tg.drafts ||= {};
+    for (const [id, x] of Object.entries(tg.drafts)) if (Date.now() - x.at > 3 * 864e5) delete tg.drafts[id];
+    return tg.drafts;
   }
 
   addFromText(chat, text) {
     const d = this.store.data;
     const q = parseQuick(text, { projects: d.projects, tags: d.tags });
-    const tagIds = [...q.tags];
     const t = {
       id: uid(),
       title: q.title || text,
@@ -154,26 +167,42 @@ export class TelegramBot {
       priority: q.priority,
       projectId: q.projectId,
       sectionId: null,
-      tags: tagIds,
+      tags: [...q.tags],
       parentId: null,
       deleted: false,
       createdAt: Date.now(),
       order: Date.now(),
     };
+    this.drafts[t.id] = { task: t, newTags: q.newTags, at: Date.now() };
+    if (!t.time && (t.duration || t.deadline)) return this.slotOffer(chat, t, `<b>${esc(t.title)}</b>\n${this.meta(t)}\n\nКогда сделать?`);
+    return this.confirm(chat, t);
+  }
+
+  confirm(chat, t, messageId) {
+    const keys = [
+      [{ text: '✅ Создать', callback_data: `ok|${t.id}` }],
+      t.time ? [{ text: '✏️ Другое время', callback_data: `c|${t.id}` }] : [{ text: '🕒 Подобрать время', callback_data: `p|${t.id}` }, { text: '✏️ Своё время', callback_data: `c|${t.id}` }],
+      [{ text: '↩️ Отменить', callback_data: `d|${t.id}` }],
+    ];
+    const text = `Создать задачу?\n<b>${esc(t.title)}</b>\n${this.meta(t)}`;
+    return messageId ? this.edit(chat, messageId, text, keys) : this.say(chat, text, keys);
+  }
+
+  // Saves a draft (with the patch) to the planner, or updates an existing task
+  commit(id, patch = {}) {
+    const dr = this.drafts[id];
     this.store.mutate((n) => {
-      for (const name of q.newTags) {
+      if (!dr) return Object.assign(n.tasks.find((x) => x.id === id), patch);
+      const t = Object.assign(dr.task, patch, { createdAt: Date.now() });
+      for (const name of dr.newTags) {
         const tg = n.tags.find((x) => x.name === name) || { id: uid(), name };
         if (!n.tags.includes(tg)) n.tags.push(tg);
         t.tags.push(tg.id);
       }
       n.tasks.push(t);
     });
-    const head = `✅ <b>${esc(t.title)}</b>\n${this.meta(t)}`;
-    if (!t.time && (t.duration || t.deadline)) return this.slotOffer(chat, t, head + '\n\nКогда сделать?');
-    const keys = t.time
-      ? [[{ text: '✏️ Изменить время', callback_data: `c|${t.id}` }, { text: '↩️ Отменить', callback_data: `d|${t.id}` }]]
-      : [[{ text: '🕒 Подобрать время', callback_data: `p|${t.id}` }, { text: '✏️ Своё время', callback_data: `c|${t.id}` }], [{ text: '↩️ Отменить', callback_data: `d|${t.id}` }]];
-    return this.say(chat, head, keys);
+    delete this.drafts[id];
+    return this.task(id);
   }
 
   meta(t) {
@@ -209,20 +238,25 @@ export class TelegramBot {
     if (!t) return [ack('Задача не найдена'), this.edit(chat, mid, 'Задача уже удалена')];
     if (kind === 's') {
       const [date, time, duration] = rest;
-      this.store.mutate((n) => Object.assign(n.tasks.find((x) => x.id === id), { date, time, duration: +duration }));
       const s = { date, time, duration: +duration };
+      this.commit(id, s);
       return [ack('Запланировано'), this.edit(chat, mid, `✅ <b>${esc(t.title)}</b>\n🕒 ${slotLabel(s)}`)];
     }
     if (kind === 'c') {
       this.tg.await = { id, mid, until: Date.now() + 15 * 6e4 };
       const hint = 'Напишите или скажите, когда: <i>в 11:30</i>, <i>завтра в 15</i>, <i>в пятницу в 9 утра</i>, <i>28.10 в 18:00 на 45 минут</i>';
-      return [ack(), this.edit(chat, mid, `<b>${esc(t.title)}</b>\n${hint}`, [[{ text: '🕒 Подобрать время', callback_data: `p|${id}` }, { text: 'Без времени', callback_data: `n|${id}` }]])];
+      return [ack(), this.edit(chat, mid, `<b>${esc(t.title)}</b>\n${hint}`, [[{ text: '🕒 Подобрать время', callback_data: `p|${id}` }, { text: 'Без времени', callback_data: `n|${id}` }], [{ text: '↩️ Отменить', callback_data: `d|${id}` }]])];
     }
     if (kind === 'n' || kind === 'p') this.tg.await = null;
-    if (kind === 'n') return [ack(), this.edit(chat, mid, `✅ <b>${esc(t.title)}</b>\n${this.meta(t)}`)];
+    if (kind === 'n' || kind === 'ok') {
+      const fresh = !!this.drafts[id];
+      const saved = this.commit(id, kind === 'n' ? { time: null } : {});
+      return [ack(fresh ? 'Создано' : 'Готово'), this.edit(chat, mid, `✅ <b>${esc(saved.title)}</b>\n${this.meta(saved)}`)];
+    }
     if (kind === 'p') return [ack(), this.slotOffer(chat, t, `<b>${esc(t.title)}</b>\nКогда сделать?`, mid)];
     if (kind === 'd') {
-      this.store.mutate((n) => (n.tasks.find((x) => x.id === id).deleted = true));
+      if (this.drafts[id]) delete this.drafts[id];
+      else this.store.mutate((n) => (n.tasks.find((x) => x.id === id).deleted = true));
       return [ack('Удалено'), this.edit(chat, mid, `<s>${esc(t.title)}</s> — отменено`)];
     }
     return [ack()];

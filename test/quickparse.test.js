@@ -72,3 +72,12 @@ test('voice phrasing: spoken time, duration word, command prefix', () => {
   assert.equal(q('встреча на 3 человека').time, null);
   assert.equal(q('созвон на 30 минут').duration, 30);
 });
+
+test('spoken full hours: "14 0 0", "15 00"', () => {
+  const r = q('Создай задачу на 14 0 0 продолжительностью 10 минут закинуть новую стирку');
+  assert.deepEqual([r.title, r.time, r.duration], ['Закинуть новую стирку', '14:00', 10]);
+  assert.equal(q('созвон в 15 00').time, '15:00');
+  assert.equal(q('созвон 15 00').time, '15:00');
+  assert.equal(q('созвон в 9 0 5').time, '09:05');
+  assert.equal(q('перевести 15 000 рублей').time, null);
+});
