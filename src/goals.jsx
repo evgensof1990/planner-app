@@ -38,7 +38,11 @@ function goalStatus(tasks, p, t = todayKey()) {
   const qName = quarterName(t);
   const section = p.sections.find((s) => s.name === qName) || p.sections.find((s) => tasks.some((x) => live(x) && x.sectionId === s.id && !x.done));
   const qTasks = section ? tasks.filter((x) => live(x) && x.sectionId === section.id) : [];
-  return { now, prev, next, flag, section, qTasks };
+  const end = addDays(mon, 6);
+  const week = tasks
+    .filter((x) => !x.deleted && x.projectId === p.id && x.date && x.date >= mon && x.date <= end)
+    .sort((a, b) => (a.date + (a.time || '99')).localeCompare(b.date + (b.time || '99')));
+  return { now, prev, next, flag, section, qTasks, week };
 }
 
 /* ---------------- Goals ---------------- */
@@ -47,6 +51,7 @@ export function GoalsView() {
   const ui = useUi();
   const t = todayKey();
   const goals = goalProjects(data);
+  const resultOf = (x) => data.tasks.find((r) => r.id === x.parentId);
   const lastReview = Object.entries(data.settings.reviews || {}).sort((a, b) => b[0].localeCompare(a[0]))[0];
   return (
     <div className="view">
@@ -88,10 +93,27 @@ export function GoalsView() {
                   <Icon name="plus" size={14} /> Шаг
                 </button>
               </div>
+              <div className="goal-steps">
+                <div className="goal-sub">Шаги этой недели</div>
+                {!g.week.length && <div className="goal-empty">Шагов нет. Добавьте шаг к результату квартала ниже или кнопкой «Шаг».</div>}
+                {g.week.map((x) => (
+                  <div key={x.id} className={'goal-item' + (x.done ? ' done' : '')}>
+                    <Checkbox checked={x.done} priority={x.priority} onChange={() => toggleTask(x.id)} />
+                    <span onClick={() => ui.openTask(x.id)}>
+                      {x.title}
+                      <small>
+                        {relLabel(x.date)}
+                        {x.time ? ', ' + x.time : ''}
+                        {x.parentId && resultOf(x) ? ' · для «' + resultOf(x).title + '»' : ''}
+                      </small>
+                    </span>
+                  </div>
+                ))}
+              </div>
               {g.section && (
                 <div className="goal-q">
                   <div className="goal-q-title">
-                    {g.section.name}
+                    Результаты квартала · {g.section.name}
                     <span>
                       {done}/{g.qTasks.length}
                     </span>
@@ -99,12 +121,27 @@ export function GoalsView() {
                   <div className="goal-bar">
                     <i style={{ width: g.qTasks.length ? (done / g.qTasks.length) * 100 + '%' : 0 }} />
                   </div>
-                  {g.qTasks.map((x) => (
-                    <div key={x.id} className={'goal-item' + (x.done ? ' done' : '')}>
-                      <Checkbox checked={x.done} priority={x.priority} onChange={() => toggleTask(x.id)} />
-                      <span onClick={() => ui.openTask(x.id)}>{x.title}</span>
-                    </div>
-                  ))}
+                  {g.qTasks.map((x) => {
+                    const steps = data.tasks.filter((s) => s.parentId === x.id && !s.deleted);
+                    const next = steps.filter((s) => !s.done && s.date).sort((a, b) => (a.date + (a.time || '')).localeCompare(b.date + (b.time || '')))[0];
+                    return (
+                      <div key={x.id} className={'goal-item' + (x.done ? ' done' : '')}>
+                        <Checkbox checked={x.done} priority={x.priority} onChange={() => toggleTask(x.id)} />
+                        <span onClick={() => ui.openTask(x.id)}>
+                          {x.title}
+                          <small>
+                            {steps.length ? `шагов: ${steps.filter((s) => s.done).length}/${steps.length}` : 'шагов пока нет'}
+                            {next ? ` · следующий ${relLabel(next.date).toLowerCase()}${next.time ? ', ' + next.time : ''}` : ''}
+                          </small>
+                        </span>
+                        {!x.done && (
+                          <button className="icon-btn sm" title="Добавить шаг к этому результату" onClick={() => ui.quickAdd({ parentId: x.id, projectId: x.projectId, sectionId: x.sectionId, date: t })}>
+                            <Icon name="plus" size={16} />
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
