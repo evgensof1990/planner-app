@@ -89,3 +89,17 @@ test('a batch places tasks one after another without clashes', async () => {
     [['b', '18:00'], ['a', '19:00'], ['c', null]]
   );
 });
+
+test('planBatch with spill moves what does not fit today to the next free slots', async () => {
+  const { planBatch } = await import('../src/scheduler.js');
+  const list = [
+    { id: 'a', title: 'A', duration: 60, priority: 1 },
+    { id: 'b', title: 'B', duration: 60, priority: 3 },
+    { id: 'c', title: 'C', duration: 120 },
+  ];
+  const r = planBatch(list, { now, day: '2026-10-26', spill: true });
+  assert.deepEqual(
+    r.map((x) => [x.task.id, x.slot && x.slot.date, x.slot && x.slot.time]),
+    [['b', '2026-10-26', '18:00'], ['a', '2026-10-26', '19:00'], ['c', '2026-10-27', '18:00']]
+  );
+});
