@@ -1656,8 +1656,7 @@ textarea {
   font-weight: 500;
 }
 .cal-ev.done {
-  opacity: 0.45;
-  text-decoration: line-through;
+  opacity: 0.75;
 }
 .cal-month {
   flex: 1;
@@ -1714,7 +1713,7 @@ textarea {
   text-overflow: ellipsis;
 }
 .cm-ev.done {
-  opacity: 0.45;
+  opacity: 0.75;
 }
 .cm-more {
   font-size: 10px;
