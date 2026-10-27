@@ -855,6 +855,12 @@ export function TaskDetail({ id, onClose }) {
           </div>
         </div>
         <div className="plan-row">
+          {project?.description?.trim() && !task.parentId && (
+            // a quarter result of a goal: its steps are subtasks with a date
+            <button className="chip accent" onClick={() => ui.quickAdd({ parentId: id, projectId: task.projectId, sectionId: task.sectionId, date: todayKey() })}>
+              <Icon name="plus" size={14} /> Шаг
+            </button>
+          )}
           <button
             className="chip ghost"
             onClick={(e) => ui.menu(e.currentTarget, DURATIONS.map((m) => ({ icon: 'timer', label: durLabel(m), active: (task.duration || DEFAULT_DURATION) === m, onClick: () => up({ duration: m }) })))}

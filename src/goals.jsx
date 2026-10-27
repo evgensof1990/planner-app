@@ -23,7 +23,8 @@ export const goalProjects = (data) => data.projects.filter((p) => !p.archived &&
 // Steps of a project dated inside a week: {total, done}
 function weekSteps(tasks, projectId, monday) {
   const end = addDays(monday, 6);
-  const list = tasks.filter((t) => live(t) && t.projectId === projectId && t.date && t.date >= monday && t.date <= end);
+  // subtasks of a quarter result count as steps too
+  const list = tasks.filter((t) => !t.deleted && t.projectId === projectId && t.date && t.date >= monday && t.date <= end);
   return { total: list.length, done: list.filter((t) => t.done).length };
 }
 
