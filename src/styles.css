@@ -1620,8 +1620,8 @@ textarea {
   color: color-mix(in srgb, var(--ev) 40%, var(--text));
   border: 0;
   border-radius: 6px;
-  font-size: 13px;
-  line-height: 16px;
+  font-size: 12px;
+  line-height: 15px;
   text-align: left;
   padding: 2px 6px;
   overflow: hidden;
