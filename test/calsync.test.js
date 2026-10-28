@@ -86,30 +86,61 @@ function setup() {
 
 const doc = (tasks, projects = []) => ({ tasks, projects, tags: [], habits: [], pomo: { sessions: [] }, settings: {}, deletedIds: {} });
 
-test('tasks with a time are pushed to the right calendar; others are not', async () => {
+test('timed tasks become events in the right calendar, dated untimed ones all-day events', async () => {
   const { y, store, sync } = setup();
   store.sync(
     doc(
       [
         { id: 't1', title: 'Отчёт', date: day(1), time: '11:00', projectId: 'pw', duration: 90, updatedAt: 1 },
         { id: 't2', title: 'Купить краску', date: day(1), time: '18:00', updatedAt: 1 },
-        { id: 't3', title: 'Без времени', date: day(1), time: null, updatedAt: 1 },
+        { id: 't3', title: 'Без времени', date: day(1), time: null, area: 'work', updatedAt: 1 },
+        { id: 't4', title: 'Без даты', date: null, updatedAt: 1 },
+        { id: 't5', title: 'Давно', date: day(-30), time: null, updatedAt: 1 },
       ],
       [{ id: 'pw', name: 'Работа', updatedAt: 1 }]
     )
   );
   await sync.run();
   assert.equal(store.state.error, null);
-  const work = Object.keys(y.cals['/calendars/me%40yandex.ru/events-3/'].objs);
-  const personal = Object.keys(y.cals['/calendars/me%40yandex.ru/events-4/'].objs);
-  assert.deepEqual(work, ['/calendars/me%40yandex.ru/events-3/planner-t1.ics']);
-  assert.deepEqual(personal, ['/calendars/me%40yandex.ru/events-4/planner-t2.ics']);
-  const ics = y.cals['/calendars/me%40yandex.ru/events-3/'].objs[work[0]].ics;
-  assert.match(ics, /SUMMARY:Отчёт/);
-  // second run with no changes writes nothing
+  const work = y.cals['/calendars/me%40yandex.ru/events-3/'].objs;
+  assert.deepEqual(Object.keys(work).sort(), ['/calendars/me%40yandex.ru/events-3/planner-t1.ics', '/calendars/me%40yandex.ru/events-3/planner-t3.ics']);
+  assert.deepEqual(Object.keys(y.cals['/calendars/me%40yandex.ru/events-4/'].objs), ['/calendars/me%40yandex.ru/events-4/planner-t2.ics']);
+  const ics = work['/calendars/me%40yandex.ru/events-3/planner-t3.ics'].ics;
+  assert.match(ics, new RegExp('DTSTART;VALUE=DATE:' + day(1).replace(/-/g, '')));
+  assert.match(ics, new RegExp('DTEND;VALUE=DATE:' + day(2).replace(/-/g, '')));
+  // a second run with no changes writes nothing
   const before = y.calls.filter((c) => c.startsWith('PUT')).length;
   await sync.run();
   assert.equal(y.calls.filter((c) => c.startsWith('PUT')).length, before);
+});
+
+test('all-day events: moving, timing and deleting in Yandex Calendar update the task', async () => {
+  const { y, store, sync } = setup();
+  const cal = '/calendars/me%40yandex.ru/events-4/';
+  store.sync(doc([{ id: 'u', title: 'Позвонить', date: day(1), updatedAt: 1 }, { id: 'v', title: 'Купить', date: day(1), updatedAt: 1 }]));
+  await sync.run();
+  const d = (k) => k.replace(/-/g, '');
+  y.edit(cal + 'planner-u.ics', (ics) => ics.replace(/DTSTART;VALUE=DATE:\d+/, 'DTSTART;VALUE=DATE:' + d(day(3))).replace(/DTEND;VALUE=DATE:\d+/, 'DTEND;VALUE=DATE:' + d(day(4))));
+  delete y.cals[cal].objs[cal + 'planner-v.ics'];
+  await sync.run();
+  const u = store.data.tasks.find((t) => t.id === 'u');
+  const v = store.data.tasks.find((t) => t.id === 'v');
+  assert.equal(u.date, day(3));
+  assert.equal(u.time ?? null, null);
+  // deleted in Yandex: the task keeps its date and is not put back for that day
+  assert.equal(v.date, day(1));
+  assert.equal(y.cals[cal].objs[cal + 'planner-v.ics'], undefined);
+  // given a time in Yandex: the task gets it
+  const target = new Date(Date.now() + 3 * 864e5);
+  target.setHours(15, 0, 0, 0);
+  const stamp = (x) => x.toISOString().replace(/[-:]/g, '').replace(/\.\d+/, '');
+  y.edit(cal + 'planner-u.ics', (ics) => ics.replace(/DTSTART;VALUE=DATE:\d+/, 'DTSTART:' + stamp(target)).replace(/DTEND;VALUE=DATE:\d+/, 'DTEND:' + stamp(new Date(target.getTime() + 18e5))).replace('TRANSP:TRANSPARENT\r\n', ''));
+  await sync.run();
+  assert.equal(store.data.tasks.find((t) => t.id === 'u').time, '15:00');
+  // moved to another day in the planner: it is back in the calendar
+  store.sync(doc([{ ...store.data.tasks.find((t) => t.id === 'v'), date: day(2), updatedAt: Date.now() + 1 }]));
+  await sync.run();
+  assert.ok(y.cals[cal].objs[cal + 'planner-v.ics']);
 });
 
 test('moving and deleting an event in Yandex Calendar updates the task', async () => {

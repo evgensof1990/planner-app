@@ -1,5 +1,6 @@
 // Two-way sync between planner tasks and Yandex Calendar over CalDAV.
-// Tasks with a date and time become events in two dedicated calendars (work / personal);
+// Tasks with a date become events in two dedicated calendars (work / personal): with a time as timed
+// events, without one as all-day events;
 // moving or deleting such an event in Yandex Calendar updates the task. Other calendars are read-only
 // and feed the "busy" picture used for planning.
 import { createHash } from 'node:crypto';
@@ -39,9 +40,19 @@ function fold(line) {
   return out.join('\r\n ');
 }
 
+const dateStamp = (key) => key.replace(/-/g, '');
+
 export function taskIcs(task) {
-  const start = taskStart(task);
-  const end = new Date(start.getTime() + (task.duration || DEFAULT_DURATION) * 6e4);
+  let when;
+  if (task.time) {
+    const start = taskStart(task);
+    const end = new Date(start.getTime() + (task.duration || DEFAULT_DURATION) * 6e4);
+    when = [`DTSTART:${utc(start)}`, `DTEND:${utc(end)}`];
+  } else {
+    const [y, m, d] = task.date.split('-').map(Number);
+    // all-day: shown above the day's grid and not counted as busy
+    when = [`DTSTART;VALUE=DATE:${dateStamp(task.date)}`, `DTEND;VALUE=DATE:${dateStamp(keyOf(new Date(y, m - 1, d + 1)))}`, 'TRANSP:TRANSPARENT'];
+  }
   const lines = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
@@ -49,8 +60,7 @@ export function taskIcs(task) {
     'BEGIN:VEVENT',
     `UID:planner-${task.id}`,
     `DTSTAMP:${utc(new Date())}`,
-    `DTSTART:${utc(start)}`,
-    `DTEND:${utc(end)}`,
+    ...when,
     `SUMMARY:${escapeText((task.done ? '✓ ' : '') + (task.title || 'Задача'))}`,
     ...(task.notes ? [`DESCRIPTION:${escapeText(task.notes)}`] : []),
     `X-PLANOVIK-TASK:${task.id}`,
@@ -60,7 +70,7 @@ export function taskIcs(task) {
   return lines.map(fold).join('\r\n') + '\r\n';
 }
 
-const hashOf = (task, cal) => createHash('sha1').update(JSON.stringify([task.title, task.notes || '', task.date, task.time, task.duration || DEFAULT_DURATION, !!task.done, cal])).digest('hex');
+const hashOf = (task, cal) => createHash('sha1').update(JSON.stringify([task.title, task.notes || '', task.date, task.time || null, task.duration || DEFAULT_DURATION, !!task.done, cal])).digest('hex');
 
 export class CalendarSync {
   constructor({ store, dav, workName, personalName, log = console }) {
@@ -119,6 +129,7 @@ export class CalendarSync {
   // Events of our tasks that were moved, resized or deleted in Yandex Calendar
   applyCalendarEdits(cal, objs) {
     const st = this.store.state;
+    st.hidden ||= {};
     const byHref = new Map(objs.map((o) => [o.href, o]));
     const edits = [];
     for (const [taskId, link] of Object.entries(st.links)) {
@@ -132,8 +143,8 @@ export class CalendarSync {
       if (o.etag && link.etag && o.etag === link.etag) continue;
       const ev = parseEvents(o.ics).events.find((e) => e.recurrenceId == null);
       link.etag = o.etag;
-      if (!ev || ev.allDay) continue;
-      edits.push({ taskId, start: ev.start, minutes: Math.max(5, Math.round((ev.end - ev.start) / 6e4)), link });
+      if (!ev) continue;
+      edits.push({ taskId, start: ev.start, allDay: ev.allDay, minutes: Math.max(5, Math.round((ev.end - ev.start) / 6e4)), link });
     }
     if (!edits.length) return;
     this.store.mutate((d) => {
@@ -141,14 +152,23 @@ export class CalendarSync {
         const t = d.tasks.find((x) => x.id === e.taskId);
         if (!t) continue;
         if (e.gone) {
-          if (t.time) t.time = null; // removed from the calendar: keep the task, drop its slot
+          // removed from the calendar: keep the task, drop its slot and don't put it back for that day
+          if (t.time) t.time = null;
+          if (t.date) st.hidden[t.id] = t.date;
           continue;
         }
         const date = keyOf(e.start);
-        const time = `${pad(e.start.getHours())}:${pad(e.start.getMinutes())}`;
-        if (t.date !== date || t.time !== time || (t.duration || DEFAULT_DURATION) !== e.minutes) {
-          Object.assign(t, { date, time, duration: e.minutes });
-          this.log.info?.('[calsync] task moved in calendar', t.id, date, time);
+        if (e.allDay) {
+          if (t.date !== date || t.time) {
+            Object.assign(t, { date, time: null });
+            this.log.info?.('[calsync] task moved in calendar', t.id, date);
+          }
+        } else {
+          const time = `${pad(e.start.getHours())}:${pad(e.start.getMinutes())}`;
+          if (t.date !== date || t.time !== time || (t.duration || DEFAULT_DURATION) !== e.minutes) {
+            Object.assign(t, { date, time, duration: e.minutes });
+            this.log.info?.('[calsync] task moved in calendar', t.id, date, time);
+          }
         }
         e.link.hash = hashOf(t, cal.href);
       }
@@ -158,9 +178,14 @@ export class CalendarSync {
   async push() {
     const st = this.store.state;
     const { tasks, projects } = this.store.data;
+    st.hidden ||= {};
     const want = new Map();
+    // all-day tasks from long ago would only clutter the calendar
+    const oldest = keyOf(new Date(Date.now() - PAST_DAYS * 864e5));
     for (const t of tasks) {
-      if (!t.date || !t.time || t.deleted) continue;
+      if (!t.date || t.deleted) continue;
+      if (!t.time && (st.hidden[t.id] === t.date || t.date < oldest)) continue;
+      delete st.hidden[t.id];
       const cal = this.ownCal(areaOf(t, projects));
       if (cal) want.set(t.id, { t, cal: cal.href });
     }
