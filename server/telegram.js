@@ -58,7 +58,7 @@ export class TelegramBot {
   }
 
   events(from, to) {
-    return this.calsync ? this.calsync.events(from, to).filter((e) => !e.own) : [];
+    return this.calsync ? this.calsync.events(from, to).filter((e) => !(e.own && e.uid?.startsWith('planner-'))) : [];
   }
 
   slotsFor(task, count = 3) {
