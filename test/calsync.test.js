@@ -86,7 +86,7 @@ function setup() {
 
 const doc = (tasks, projects = []) => ({ tasks, projects, tags: [], habits: [], pomo: { sessions: [] }, settings: {}, deletedIds: {} });
 
-test('timed tasks become events in the right calendar, dated untimed ones all-day events', async () => {
+test('timed tasks become events in the right calendar, dated untimed ones stand at 09:00', async () => {
   const { y, store, sync } = setup();
   store.sync(
     doc(
@@ -106,21 +106,29 @@ test('timed tasks become events in the right calendar, dated untimed ones all-da
   assert.deepEqual(Object.keys(work).sort(), ['/calendars/me%40yandex.ru/events-3/planner-t1.ics', '/calendars/me%40yandex.ru/events-3/planner-t3.ics']);
   assert.deepEqual(Object.keys(y.cals['/calendars/me%40yandex.ru/events-4/'].objs), ['/calendars/me%40yandex.ru/events-4/planner-t2.ics']);
   const ics = work['/calendars/me%40yandex.ru/events-3/planner-t3.ics'].ics;
-  assert.match(ics, new RegExp('DTSTART;VALUE=DATE:' + day(1).replace(/-/g, '')));
-  assert.match(ics, new RegExp('DTEND;VALUE=DATE:' + day(2).replace(/-/g, '')));
+  const nine = new Date(Date.now() + 864e5);
+  nine.setHours(9, 0, 0, 0);
+  assert.match(ics, new RegExp('DTSTART:' + nine.toISOString().replace(/[-:]/g, '').replace(/\.\d+/, '')));
+  assert.match(ics, /TRANSP:TRANSPARENT/);
   // a second run with no changes writes nothing
   const before = y.calls.filter((c) => c.startsWith('PUT')).length;
   await sync.run();
   assert.equal(y.calls.filter((c) => c.startsWith('PUT')).length, before);
 });
 
-test('all-day events: moving, timing and deleting in Yandex Calendar update the task', async () => {
+test('a task without a time: moving its 09:00 event keeps it untimed, another hour sets the time', async () => {
   const { y, store, sync } = setup();
   const cal = '/calendars/me%40yandex.ru/events-4/';
   store.sync(doc([{ id: 'u', title: 'Позвонить', date: day(1), updatedAt: 1 }, { id: 'v', title: 'Купить', date: day(1), updatedAt: 1 }]));
   await sync.run();
-  const d = (k) => k.replace(/-/g, '');
-  y.edit(cal + 'planner-u.ics', (ics) => ics.replace(/DTSTART;VALUE=DATE:\d+/, 'DTSTART;VALUE=DATE:' + d(day(3))).replace(/DTEND;VALUE=DATE:\d+/, 'DTEND;VALUE=DATE:' + d(day(4))));
+  const stamp = (x) => x.toISOString().replace(/[-:]/g, '').replace(/\.\d+/, '');
+  const at = (offset, h) => {
+    const x = new Date(Date.now() + offset * 864e5);
+    x.setHours(h, 0, 0, 0);
+    return x;
+  };
+  const move = (s, e) => (ics) => ics.replace(/DTSTART:\S+/, 'DTSTART:' + stamp(s)).replace(/DTEND:\S+/, 'DTEND:' + stamp(e));
+  y.edit(cal + 'planner-u.ics', move(at(3, 9), new Date(at(3, 9).getTime() + 18e5)));
   delete y.cals[cal].objs[cal + 'planner-v.ics'];
   await sync.run();
   const u = store.data.tasks.find((t) => t.id === 'u');
@@ -130,11 +138,7 @@ test('all-day events: moving, timing and deleting in Yandex Calendar update the 
   // deleted in Yandex: the task keeps its date and is not put back for that day
   assert.equal(v.date, day(1));
   assert.equal(y.cals[cal].objs[cal + 'planner-v.ics'], undefined);
-  // given a time in Yandex: the task gets it
-  const target = new Date(Date.now() + 3 * 864e5);
-  target.setHours(15, 0, 0, 0);
-  const stamp = (x) => x.toISOString().replace(/[-:]/g, '').replace(/\.\d+/, '');
-  y.edit(cal + 'planner-u.ics', (ics) => ics.replace(/DTSTART;VALUE=DATE:\d+/, 'DTSTART:' + stamp(target)).replace(/DTEND;VALUE=DATE:\d+/, 'DTEND:' + stamp(new Date(target.getTime() + 18e5))).replace('TRANSP:TRANSPARENT\r\n', ''));
+  y.edit(cal + 'planner-u.ics', move(at(3, 15), new Date(at(3, 15).getTime() + 18e5)));
   await sync.run();
   assert.equal(store.data.tasks.find((t) => t.id === 'u').time, '15:00');
   // moved to another day in the planner: it is back in the calendar

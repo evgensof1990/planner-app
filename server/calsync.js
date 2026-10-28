@@ -1,12 +1,12 @@
 // Two-way sync between planner tasks and Yandex Calendar over CalDAV.
-// Tasks with a date become events in two dedicated calendars (work / personal): with a time as timed
-// events, without one as all-day events;
+// Tasks with a date become events in two dedicated calendars (work / personal); a task without a time
+// stands at 09:00 and stays without one unless it is moved to another hour in Yandex;
 // moving or deleting such an event in Yandex Calendar updates the task. Other calendars are read-only
 // and feed the "busy" picture used for planning.
 import { createHash } from 'node:crypto';
 import { parseEvents, expandEvents, escapeText } from '../src/icalparse.js';
 import { keyOf, pad } from '../src/date.js';
-import { areaOf, DEFAULT_DURATION } from '../src/scheduler.js';
+import { areaOf, DEFAULT_DURATION, DAY_SLOT } from '../src/scheduler.js';
 
 export { areaOf, DEFAULT_DURATION };
 
@@ -15,7 +15,7 @@ const FUTURE_DAYS = 60;
 
 export const taskStart = (t) => {
   const [y, m, d] = t.date.split('-').map(Number);
-  const [hh, mm] = t.time.split(':').map(Number);
+  const [hh, mm] = (t.time || DAY_SLOT).split(':').map(Number);
   return new Date(y, m - 1, d, hh, mm);
 };
 
@@ -40,19 +40,9 @@ function fold(line) {
   return out.join('\r\n ');
 }
 
-const dateStamp = (key) => key.replace(/-/g, '');
-
 export function taskIcs(task) {
-  let when;
-  if (task.time) {
-    const start = taskStart(task);
-    const end = new Date(start.getTime() + (task.duration || DEFAULT_DURATION) * 6e4);
-    when = [`DTSTART:${utc(start)}`, `DTEND:${utc(end)}`];
-  } else {
-    const [y, m, d] = task.date.split('-').map(Number);
-    // all-day: shown above the day's grid and not counted as busy
-    when = [`DTSTART;VALUE=DATE:${dateStamp(task.date)}`, `DTEND;VALUE=DATE:${dateStamp(keyOf(new Date(y, m - 1, d + 1)))}`, 'TRANSP:TRANSPARENT'];
-  }
+  const start = taskStart(task);
+  const end = new Date(start.getTime() + (task.duration || DEFAULT_DURATION) * 6e4);
   const lines = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
@@ -60,7 +50,10 @@ export function taskIcs(task) {
     'BEGIN:VEVENT',
     `UID:planner-${task.id}`,
     `DTSTAMP:${utc(new Date())}`,
-    ...when,
+    `DTSTART:${utc(start)}`,
+    `DTEND:${utc(end)}`,
+    // without a time: a reminder of the day, not busy
+    ...(task.time ? [] : ['TRANSP:TRANSPARENT']),
     `SUMMARY:${escapeText((task.done ? '✓ ' : '') + (task.title || 'Задача'))}`,
     ...(task.notes ? [`DESCRIPTION:${escapeText(task.notes)}`] : []),
     `X-PLANOVIK-TASK:${task.id}`,
@@ -158,13 +151,14 @@ export class CalendarSync {
           continue;
         }
         const date = keyOf(e.start);
-        if (e.allDay) {
+        const time = `${pad(e.start.getHours())}:${pad(e.start.getMinutes())}`;
+        // still at 09:00 (or made all-day): only the day changed, the task stays without a time
+        if (e.allDay || (!t.time && time === DAY_SLOT && e.minutes === (t.duration || DEFAULT_DURATION))) {
           if (t.date !== date || t.time) {
             Object.assign(t, { date, time: null });
             this.log.info?.('[calsync] task moved in calendar', t.id, date);
           }
         } else {
-          const time = `${pad(e.start.getHours())}:${pad(e.start.getMinutes())}`;
           if (t.date !== date || t.time !== time || (t.duration || DEFAULT_DURATION) !== e.minutes) {
             Object.assign(t, { date, time, duration: e.minutes });
             this.log.info?.('[calsync] task moved in calendar', t.id, date, time);

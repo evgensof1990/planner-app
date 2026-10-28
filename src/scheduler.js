@@ -4,6 +4,8 @@
 import { addDays, keyOf, parseKey, pad } from './date.js';
 
 export const DEFAULT_DURATION = 30;
+// where a dated task without a time stands in the calendars
+export const DAY_SLOT = '09:00';
 
 export const DEFAULT_RULES = {
   work: { days: [1, 2, 3, 4, 5], windows: [['10:00', '18:00']] },

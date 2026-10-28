@@ -101,7 +101,7 @@ export async function refreshServerEvents() {
       colors,
       calNames,
       events: events
-        .filter((e) => !e.own)
+        .filter((e) => !(e.own && e.uid?.startsWith('planner-')))
         .map((e) => {
           const s = new Date(e.start);
           return { title: e.title, busy: e.busy, date: keyOf(s), time: e.allDay ? null : `${pad(s.getHours())}:${pad(s.getMinutes())}`, dur: e.allDay ? 0 : Math.max(15, Math.round((e.end - e.start) / 6e4)), color: e.color?.slice(0, 7), calName: e.calName };

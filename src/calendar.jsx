@@ -4,7 +4,7 @@ import Icon from './icons.jsx';
 import { useStore, PRIORITY_COLORS } from './store.jsx';
 import { layoutDay } from './daylayout.js';
 import { calendarItems, onCalendarsChange, refreshStale, taskColors, taskCalendarName } from './ical.js';
-import { areaOf } from './scheduler.js';
+import { areaOf, DAY_SLOT } from './scheduler.js';
 import { MONTHS, MONTHS_GEN, REPEATS, WD, WD_MON, addDays, monthGrid, parseKey, todayKey, pad, weekStart } from './date.js';
 
 const HOUR = 54;
@@ -148,7 +148,7 @@ export function CalendarView({ day, setDay }) {
             {days.map((k) => (
               <div key={k} className="cal-ad-col">
                 {tasks
-                  .filter((x) => x.date === k && !x.time)
+                  .filter((x) => x.date === k && !x.time && x.ext)
                   .map((x) => (
                     <button key={x.id} className={'cal-ev allday' + (x.done ? ' done' : '')} style={tint(x)} onClick={(e) => open(x, e)}>
                       {label(x)}
@@ -182,7 +182,7 @@ export function CalendarView({ day, setDay }) {
                     <i key={h} className="cal-line" style={{ top: h * HOUR }} />
                   ))}
                   {k === t && <div className="cal-now" style={{ top: ((now.getHours() * 60 + now.getMinutes()) / 60) * HOUR }} />}
-                  {layoutDay(tasks.filter((x) => x.date === k && x.time)).map(({ x, start, end, col, cols }) => {
+                  {layoutDay(tasks.filter((x) => x.date === k && (x.time || !x.ext)).map((x) => (x.time ? x : { ...x, time: DAY_SLOT }))).map(({ x, start, end, col, cols }) => {
                     const height = ((end - start) / 60) * HOUR - 2;
                     // tall enough for the time range on its own line, like Yandex Calendar
                     const tall = height >= 40;
@@ -350,7 +350,7 @@ function EventCard({ x: item, end: evEnd, color, rect, onClose }) {
   let end = evEnd;
   // own tasks: the end follows the task's length, so edits show at once
   if (!item.ext && task.time) end = toMin(task.time) + (task.duration || 30);
-  const when = `${WD_FULL[d.getDay()]}, ${d.getDate()} ${MONTHS_GEN[d.getMonth()]}` + (task.time ? `, ${task.time}${end ? ' — ' + hm(end) : ''}` : ', весь день');
+  const when = `${WD_FULL[d.getDay()]}, ${d.getDate()} ${MONTHS_GEN[d.getMonth()]}` + (task.time ? `, ${task.time}${end ? ' — ' + hm(end) : ''}` : item.ext ? ', весь день' : ', без времени (стоит в 09:00)');
   const project = !item.ext && data.projects.find((p) => p.id === task.projectId);
   const calName = item.ext ? task.calName : taskCalendarName(task, data.tasks, data.projects) || (areaOf(task, data.projects) === 'work' ? 'Работа' : 'Личное');
   const repeat = !item.ext && task.repeat && REPEATS.find((r) => r[0] === task.repeat)?.[1];
