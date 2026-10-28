@@ -81,3 +81,9 @@ test('spoken full hours: "14 0 0", "15 00"', () => {
   assert.equal(q('созвон в 9 0 5').time, '09:05');
   assert.equal(q('перевести 15 000 рублей').time, null);
 });
+
+test('a spoken hashtag picks the project', () => {
+  const r = parseQuick('оформить авито кабинет хештег работа', { projects: [{ id: 'w', name: 'Работа' }] });
+  assert.equal(r.title, 'оформить авито кабинет');
+  assert.equal(r.projectId, 'w');
+});
