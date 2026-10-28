@@ -159,7 +159,8 @@ export class TelegramBot {
       notes: '',
       done: false,
       doneAt: null,
-      date: q.date,
+      // without a date it goes to today, so it shows in «Сегодня» and the calendar instead of getting lost
+      date: q.date || todayKey(),
       time: q.time,
       deadline: q.deadline,
       duration: q.duration,
@@ -214,8 +215,8 @@ export class TelegramBot {
     const d = this.store.data;
     const p = d.projects.find((x) => x.id === t.projectId);
     const parts = [];
-    if (t.date) parts.push(`📅 ${relLabel(t.date)}${t.time ? ' ' + t.time : ''}`);
-    else parts.push('📥 Входящие');
+    if (t.date) parts.push(`📅 ${relLabel(t.date)}${t.time ? ' ' + t.time : ', без времени'}`);
+    else parts.push('📥 без даты');
     if (t.duration) parts.push(`⏱ ${dur(t.duration)}`);
     if (t.deadline) parts.push(`⏰ до ${relLabel(t.deadline).toLowerCase()}`);
     if (p) parts.push(`${p.emoji || '📁'} ${esc(p.name)}`);

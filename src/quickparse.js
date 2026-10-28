@@ -79,7 +79,8 @@ function dateAt(s, now) {
 
 export function parseQuick(text, { projects = [], tags = [], now = new Date() } = {}) {
   const out = { title: '', date: null, time: null, deadline: null, duration: null, priority: 0, projectId: null, tags: [], newTags: [] };
-  let s = ' ' + text + ' ';
+  // spoken hashtags: "хештег работа" -> "#работа"
+  let s = (' ' + text + ' ').replace(/(\s)(?:хеш|хэш|хаш)тег\s+(?=[\p{L}\d])/giu, '$1#');
   const cut = (re, fn) => {
     s = s.replace(re, (...a) => {
       const r = fn(...a);
