@@ -379,6 +379,17 @@ export class TelegramBot {
     }
     // reminders of tasks with «🔔»: at the task's time (or `remind` minutes before), within an hour of it
     sent.remind ||= {};
+    // a repeating reminder left unmarked moves on to today, so tomorrow's reminder still comes
+    const stale = this.store.data.tasks.filter((t) => alive(t) && !t.done && t.repeat && t.remind != null && t.time && t.date && t.date < day);
+    if (stale.length)
+      this.store.mutate((n) => {
+        for (const s of stale) {
+          const t = n.tasks.find((x) => x.id === s.id);
+          let next = t.date;
+          while (next < day) next = nextRepeat(next, t.repeat);
+          t.date = next;
+        }
+      });
     for (const t of this.store.data.tasks) {
       if (!alive(t) || t.done || t.date !== day || !t.time || t.remind == null) continue;
       const at = minus(t.time, t.remind);
