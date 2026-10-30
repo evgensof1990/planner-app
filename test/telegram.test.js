@@ -151,4 +151,10 @@ test('«напомни … каждый день в 9:45»: a daily task the bot
   assert.equal(store.data.tasks.find((x) => x.id === t.id).done, true);
   assert.equal(next.date, addDays(t.date, 1));
   assert.deepEqual([next.time, next.repeat, next.remind], ['09:45', 'daily', 0]);
+
+  // left unmarked: the next day it moves on and reminds again
+  bot.tick(new Date(y, mo - 1, d + 2, 9, 45));
+  const again = store.data.tasks.find((x) => !x.done);
+  assert.equal(again.date, addDays(t.date, 2));
+  assert.equal(bot.takeOutbox().filter((x) => /🔔 <b>/.test(x.params.text)).length, 1);
 });
