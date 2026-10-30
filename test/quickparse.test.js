@@ -87,3 +87,11 @@ test('a spoken hashtag picks the project', () => {
   assert.equal(r.title, 'оформить авито кабинет');
   assert.equal(r.projectId, 'w');
 });
+
+test('repeats: «каждый день», «по будням», «ежемесячно»', () => {
+  assert.equal(parseQuick('выпить таблетку каждый день в 9:45').repeat, 'daily');
+  assert.equal(parseQuick('выпить таблетку каждый день в 9:45').title, 'выпить таблетку');
+  assert.equal(parseQuick('планёрка по будням в 10').repeat, 'weekdays');
+  assert.equal(parseQuick('оплатить связь ежемесячно').repeat, 'monthly');
+  assert.equal(parseQuick('купить хлеб').repeat, null);
+});

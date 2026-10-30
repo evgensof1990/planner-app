@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Store } from '../server/store.js';
 import { TelegramBot } from '../server/telegram.js';
-import { todayKey } from '../src/date.js';
+import { todayKey, addDays } from '../src/date.js';
 
 const CHAT = 42;
 const msg = (text, extra = {}) => ({ message: { message_id: 1, chat: { id: CHAT }, text, ...extra } });
@@ -128,4 +128,27 @@ test('«Сделать рабочей» switches a draft to the work calendar be
   assert.ok(keysOf(shown).some((k) => /Сделать личной/.test(k.text)));
   await bot.handle(cb(btn(shown, /Создать/)));
   assert.equal(store.data.tasks.find((x) => x.title === 'созвон с подрядчиком').area, 'work');
+});
+
+test('«напомни … каждый день в 9:45»: a daily task the bot reminds of; «Выполнено» moves it to tomorrow', async () => {
+  const { store, bot } = await bound();
+  const [m] = await bot.handle(msg('напомни выпить бринтеликс каждый день в 9:45'));
+  assert.match(m.params.text, /Выпить бринтеликс[\s\S]*09:45[\s\S]*🔁 каждый день[\s\S]*🔔/);
+  await bot.handle(cb(btn(m, /Создать/)));
+  const t = store.data.tasks[0];
+  assert.deepEqual([t.title, t.time, t.repeat, t.remind], ['Выпить бринтеликс', '09:45', 'daily', 0]);
+  bot.takeOutbox();
+  const [y, mo, d] = t.date.split('-').map(Number);
+  bot.tick(new Date(y, mo - 1, d, 9, 44));
+  assert.equal(bot.takeOutbox().filter((x) => /🔔 <b>/.test(x.params.text)).length, 0);
+  bot.tick(new Date(y, mo - 1, d, 9, 45));
+  bot.tick(new Date(y, mo - 1, d, 9, 46));
+  const out = bot.takeOutbox().filter((x) => /🔔 <b>/.test(x.params.text));
+  assert.equal(out.length, 1);
+  assert.match(out[0].params.text, /🔔 <b>Выпить бринтеликс<\/b>/);
+  await bot.handle(cb(btn(out[0], /Выполнено/)));
+  const next = store.data.tasks.find((x) => !x.done);
+  assert.equal(store.data.tasks.find((x) => x.id === t.id).done, true);
+  assert.equal(next.date, addDays(t.date, 1));
+  assert.deepEqual([next.time, next.repeat, next.remind], ['09:45', 'daily', 0]);
 });

@@ -78,7 +78,7 @@ function dateAt(s, now) {
 }
 
 export function parseQuick(text, { projects = [], tags = [], now = new Date() } = {}) {
-  const out = { title: '', date: null, time: null, deadline: null, duration: null, priority: 0, projectId: null, tags: [], newTags: [] };
+  const out = { title: '', date: null, time: null, deadline: null, duration: null, priority: 0, projectId: null, tags: [], newTags: [], repeat: null, remind: null };
   // spoken hashtags: "хештег работа" -> "#работа"
   let s = (' ' + text + ' ').replace(/(\s)(?:хеш|хэш|хаш)тег\s+(?=[\p{L}\d])/giu, '$1#');
   const cut = (re, fn) => {
@@ -87,6 +87,20 @@ export function parseQuick(text, { projects = [], tags = [], now = new Date() } 
       return r === false ? a[0] : ' ';
     });
   };
+
+  // "каждый день", "по будням", "ежемесячно" -> repeat
+  const REPEAT_WORDS = [
+    ['(?:каждый|каждого)\\s+будн(?:ий|его)\\s+(?:день|дня)|по\\s+будням', 'weekdays'],
+    ['кажд(?:ый|ого)\\s+(?:день|дня)|ежедневно', 'daily'],
+    ['каждую\\s+неделю|еженедельно', 'weekly'],
+    ['каждый\\s+месяц|ежемесячно', 'monthly'],
+    ['каждый\\s+год|ежегодно', 'yearly'],
+  ];
+  for (const [re, v] of REPEAT_WORDS)
+    cut(new RegExp(B + '(?:' + re + ')' + E, 'iu'), () => {
+      if (out.repeat) return false;
+      out.repeat = v;
+    });
 
   // #project or #tag
   cut(/(^|\s)#([\p{L}\d_-]+)/gu, (_, __, name) => {
@@ -159,6 +173,8 @@ export function parseQuick(text, { projects = [], tags = [], now = new Date() } 
   out.title = s.replace(/\s+/g, ' ').trim();
   // spoken commands: "создай задачу …", "напомни мне …"
   const bare = out.title.replace(COMMAND, '');
+  // "напомни …" asks for a reminder at the task's time
+  if (/^напомни/iu.test(out.title) && out.time) out.remind = 0;
   if (bare && bare !== out.title) out.title = bare[0].toUpperCase() + bare.slice(1);
   return out;
 }
