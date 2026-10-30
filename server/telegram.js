@@ -5,7 +5,7 @@
 import { randomInt } from 'node:crypto';
 import { parseQuick } from '../src/quickparse.js';
 import { suggestSlots, slotLabel, planBatch, areaOf, DEFAULT_DURATION } from '../src/scheduler.js';
-import { addDays, keyOf, parseKey, todayKey, relLabel, WD } from '../src/date.js';
+import { addDays, keyOf, parseKey, todayKey, relLabel, WD, REPEATS, nextRepeat } from '../src/date.js';
 
 const uid = () => Math.random().toString(36).slice(2, 9) + Date.now().toString(36).slice(-4);
 const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -164,7 +164,8 @@ export class TelegramBot {
       time: q.time,
       deadline: q.deadline,
       duration: q.duration,
-      remind: null,
+      remind: q.remind,
+      repeat: q.repeat,
       priority: q.priority,
       projectId: q.projectId,
       sectionId: null,
@@ -221,6 +222,8 @@ export class TelegramBot {
     if (t.deadline) parts.push(`⏰ до ${relLabel(t.deadline).toLowerCase()}`);
     if (p) parts.push(`${p.emoji || '📁'} ${esc(p.name)}`);
     parts.push(areaOf(t, d.projects) === 'work' ? '💼 рабочая' : '🏠 личная');
+    if (t.repeat) parts.push(`🔁 ${(REPEATS.find((r) => r[0] === t.repeat)?.[1] || '').toLowerCase()}`);
+    if (t.time && t.remind != null) parts.push('🔔 напомню');
     if (t.priority) parts.push('🚩'.repeat(t.priority));
     return parts.join(' · ');
   }
@@ -243,6 +246,10 @@ export class TelegramBot {
     if (kind === 'pa') return this.acceptPlan(chat, mid, id, ack);
     const t = id && this.task(id);
     if (!t) return [ack('Задача не найдена'), this.edit(chat, mid, 'Задача уже удалена')];
+    if (kind === 'x') {
+      this.complete(id);
+      return [ack('Выполнено'), this.edit(chat, mid, `✅ <s>${esc(t.title)}</s>`)];
+    }
     if (kind === 's') {
       const [date, time, duration] = rest;
       const s = { date, time, duration: +duration };
@@ -370,7 +377,35 @@ export class TelegramBot {
       sent.review = day;
       this.tg.outbox.push(this.say(this.tg.chat, `🗓 <b>Через 5 минут обзор недели</b> (${rv.start}, 30 минут).\nИтоги, хвосты, светофор финансов и план на следующую неделю.`, [[{ text: 'Открыть обзор', url: APP_URL + '#review' }]]));
     }
+    // reminders of tasks with «🔔»: at the task's time (or `remind` minutes before), within an hour of it
+    sent.remind ||= {};
+    for (const t of this.store.data.tasks) {
+      if (!alive(t) || t.done || t.date !== day || !t.time || t.remind == null) continue;
+      const at = minus(t.time, t.remind);
+      const key = `${day} ${t.time}`;
+      if (at < '00:00' || hm < at || hm > minus(at, -60) || sent.remind[t.id] === key) continue;
+      sent.remind[t.id] = key;
+      const when = t.remind ? `через ${dur(t.remind)}, в ${t.time}` : t.time;
+      this.tg.outbox.push(this.say(this.tg.chat, `🔔 <b>${esc(t.title)}</b>
+${when}`, [[{ text: '✅ Выполнено', callback_data: `x|${t.id}` }]]));
+    }
+    for (const [id, key] of Object.entries(sent.remind)) if (key.slice(0, 10) < addDays(day, -2)) delete sent.remind[id];
     this.save();
+  }
+
+  // Marks a task done; a repeating one leaves a fresh copy on its next date (as in the app)
+  complete(id) {
+    this.store.mutate((n) => {
+      const t = n.tasks.find((x) => x.id === id);
+      if (!t || t.done) return;
+      Object.assign(t, { done: true, doneAt: Date.now() });
+      const next = t.repeat && t.date && nextRepeat(t.date, t.repeat);
+      if (next && !t.parentId) {
+        n.tasks.push({ ...t, id: uid(), date: next, done: false, doneAt: null, archived: false, createdAt: Date.now(), order: Date.now() });
+        t.repeat = null;
+      }
+      if (!t.parentId && n.settings.autoArchive !== false) t.archived = true;
+    });
   }
 
   takeOutbox() {
