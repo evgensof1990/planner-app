@@ -1,4 +1,5 @@
 // Import of a TickTick backup (Settings → Account → Generate Backup, CSV).
+import { mkItem } from './checklist.js';
 import { uid, mkTask } from './store.jsx';
 
 export function parseCSV(text) {
@@ -142,7 +143,7 @@ export function convertTickTick(text) {
     tasks.push(t);
     if (col(r, 'taskId')) idMap.set(col(r, 'taskId'), t.id);
     if (col(r, 'parentId')) parentOf.push([t, col(r, 'parentId')]);
-    items.forEach((it, i) => tasks.push(mkTask({ title: it.title, done: it.done, doneAt: it.done ? Date.now() : null, parentId: t.id, projectId, sectionId, order: i })));
+    if (items.length) t.checklist = items.map((it) => mkItem(it.title, it.done));
   }
   for (const [t, pid] of parentOf) if (idMap.has(pid)) t.parentId = idMap.get(pid);
   return { tasks, projects: [...projects.values()], tags: [...tags.values()] };

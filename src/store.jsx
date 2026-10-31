@@ -132,7 +132,20 @@ export function StoreProvider({ children }) {
             // a repeating task leaves a fresh copy on its next date
             const next = t.repeat && t.date && nextRepeat(t.date, t.repeat);
             if (next && !t.parentId) {
-              n.tasks.push(mkTask({ ...t, id: uid(), date: next, done: false, doneAt: null, archived: false, createdAt: Date.now(), order: Date.now() }));
+              n.tasks.push(
+                mkTask({
+                  ...t,
+                  id: uid(),
+                  date: next,
+                  done: false,
+                  doneAt: null,
+                  archived: false,
+                  createdAt: Date.now(),
+                  order: Date.now(),
+                  // the checklist starts over, e.g. a weekly shopping list
+                  ...(t.checklist ? { checklist: t.checklist.map((i) => ({ ...i, id: uid(), done: false })) } : {}),
+                })
+              );
               t.repeat = null;
             }
             if (!t.parentId && n.settings.autoArchive !== false) t.archived = true;

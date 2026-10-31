@@ -7,6 +7,7 @@ import { parseQuick } from './quickparse.js';
 import { suggestSlots, slotLabel, areaOf, DEFAULT_DURATION } from './scheduler.js';
 import { busyEvents } from './ical.js';
 import { voiceAvailable, startRecording, recognize } from './voice.js';
+import { parseItems, mkItem, itemsOf, progress } from './checklist.js';
 
 export const REMIND_OPTIONS = [
   [null, 'Нет'],
@@ -727,6 +728,84 @@ export function HabitEdit({ habit, onClose }) {
   );
 }
 
+/* ---------------- Checklist ---------------- */
+function Checklist({ task, onChange, onAllDone, autoFocus }) {
+  const ui = useUi();
+  const [text, setText] = useState('');
+  const items = itemsOf(task);
+  const { done, total } = progress(task);
+  const set = (next) => {
+    onChange(next);
+    if (next.length && next.every((i) => i.done) && !items.every((i) => i.done)) onAllDone();
+  };
+  const add = (raw) => {
+    const parsed = parseItems(raw);
+    if (!parsed.length) return;
+    onChange([...items, ...parsed.map((p) => mkItem(p.title, p.done))]);
+    setText('');
+  };
+  return (
+    <div className="checklist">
+      <div className="cl-head">
+        <Icon name="list" size={16} />
+        <span>Чек-лист</span>
+        {total > 0 && (
+          <span className="cl-count">
+            {done} из {total}
+          </span>
+        )}
+        <div style={{ flex: 1 }} />
+        <button
+          className="icon-btn sm"
+          aria-label="Действия с чек-листом"
+          onClick={(e) =>
+            ui.menu(e.currentTarget, [
+              done > 0 && { icon: 'reset', label: 'Снять все отметки', onClick: () => onChange(items.map((i) => ({ ...i, done: false }))) },
+              done > 0 && { icon: 'check', label: 'Убрать отмеченные', onClick: () => onChange(items.filter((i) => !i.done)) },
+              { icon: 'trash', label: 'Удалить чек-лист', danger: true, onClick: () => ui.confirm('Удалить чек-лист?', () => onChange(null)) },
+            ])
+          }
+        >
+          <Icon name="more" size={18} />
+        </button>
+      </div>
+      {total > 0 && (
+        <div className="cl-bar">
+          <div style={{ width: (done / total) * 100 + '%' }} />
+        </div>
+      )}
+      {items.map((it) => (
+        <div key={it.id} className={'sub-row cl-row' + (it.done ? ' done' : '')}>
+          <Checkbox quiet checked={it.done} onChange={() => set(items.map((i) => (i.id === it.id ? { ...i, done: !i.done } : i)))} />
+          <input value={it.title} onChange={(e) => onChange(items.map((i) => (i.id === it.id ? { ...i, title: e.target.value } : i)))} onBlur={(e) => !e.target.value.trim() && onChange(items.filter((i) => i.id !== it.id))} />
+          <button className="icon-btn sm" aria-label="Удалить пункт" onClick={() => onChange(items.filter((i) => i.id !== it.id))}>
+            <Icon name="close" size={16} />
+          </button>
+        </div>
+      ))}
+      <div className="sub-row add">
+        <Icon name="plus" size={18} />
+        <input
+          autoFocus={autoFocus}
+          placeholder={total ? 'Добавить пункт' : 'Пункт или вставьте список'}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && add(text)}
+          onBlur={() => add(text)}
+          onPaste={(e) => {
+            // a pasted list becomes one item per line
+            const pasted = e.clipboardData?.getData('text') || '';
+            if (/\n/.test(pasted.trim())) {
+              e.preventDefault();
+              add(text + pasted);
+            }
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
 /* ---------------- Task detail ---------------- */
 function AutoText({ value, onChange, className, placeholder }) {
   const ref = useRef();
@@ -743,7 +822,9 @@ export function TaskDetail({ id, onClose }) {
   const ui = useUi();
   const task = data.tasks.find((t) => t.id === id);
   const [newSub, setNewSub] = useState('');
+  const [clOpen, setClOpen] = useState(false);
   if (!task) return null;
+  const hasCl = Array.isArray(task.checklist);
   const project = data.projects.find((p) => p.id === task.projectId);
   const section = project?.sections.find((s) => s.id === task.sectionId);
   const subs = data.tasks.filter((t) => t.parentId === id && !t.deleted).sort((a, b) => a.order - b.order);
@@ -840,6 +921,17 @@ export function TaskDetail({ id, onClose }) {
             })}
           </div>
         )}
+        {(hasCl || clOpen) && (
+          <Checklist
+            task={task}
+            autoFocus={clOpen && !itemsOf(task).length}
+            onChange={(checklist) => {
+              if (checklist === null) setClOpen(false);
+              up({ checklist: checklist || undefined });
+            }}
+            onAllDone={() => !task.done && ui.toast('Всё отмечено', { label: 'Завершить задачу', fn: () => toggleTask(id) })}
+          />
+        )}
         <div className="subtasks">
           {subs.map((s) => (
             <div key={s.id} className={'sub-row' + (s.done ? ' done' : '')}>
@@ -856,6 +948,11 @@ export function TaskDetail({ id, onClose }) {
           </div>
         </div>
         <div className="plan-row">
+          {!hasCl && !clOpen && (
+            <button className="chip ghost" onClick={() => setClOpen(true)}>
+              <Icon name="list" size={14} /> Чек-лист
+            </button>
+          )}
           {project?.description?.trim() && !task.parentId && (
             // a quarter result of a goal: its steps are subtasks with a date
             <button className="chip accent" onClick={() => ui.quickAdd({ parentId: id, projectId: task.projectId, sectionId: task.sectionId, date: todayKey() })}>
