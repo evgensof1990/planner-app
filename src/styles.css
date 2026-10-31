@@ -3139,3 +3139,44 @@ dd.ev-card-notes {
     background: var(--line2);
   }
 }
+
+/* Checklist inside a task */
+.checklist {
+  margin-top: 12px;
+  border-top: 1px solid var(--line);
+  padding-top: 8px;
+}
+.cl-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text2);
+  font-size: 13px;
+  font-weight: 600;
+}
+.cl-count {
+  font-weight: 500;
+  color: var(--text3);
+}
+.cl-bar {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--line);
+  margin: 6px 0 4px;
+  overflow: hidden;
+}
+.cl-bar > div {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 2px;
+  transition: width 0.2s;
+}
+.cl-row .icon-btn {
+  color: var(--text3);
+}
+.cl-meta {
+  font-variant-numeric: tabular-nums;
+}
+.cl-meta.full {
+  color: #5cc97b;
+}

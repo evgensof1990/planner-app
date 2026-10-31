@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import Icon from './icons.jsx';
 import { PRIORITY_COLORS, useStore } from './store.jsx';
 import { fmtLong, todayKey, relLabel } from './date.js';
+import { progress } from './checklist.js';
 
 export const UiCtx = createContext(null);
 export const useUi = () => useContext(UiCtx);
@@ -59,7 +60,7 @@ export function IconBtn({ name, onClick, active, size, title, dot, className = "
 
 const CHEERS = ['🎉', '🥳', '👏', '🔥', '💪', '⭐', '😎', '🚀', '✨', '👍', '🏆', '🙌', '🤘', '💥', '🎯', '🦄', '🌈', '🍀', '😺', '🤩'];
 
-export function Checkbox({ checked, priority = 0, onChange }) {
+export function Checkbox({ checked, priority = 0, onChange, quiet }) {
   const color = PRIORITY_COLORS[priority];
   const { data } = useStore();
   const [cheer, setCheer] = useState(null);
@@ -72,7 +73,7 @@ export function Checkbox({ checked, priority = 0, onChange }) {
       onClick={(e) => {
         e.stopPropagation();
         clearTimeout(timer.current);
-        if (!checked && data.settings.cheer !== false) {
+        if (!checked && !quiet && data.settings.cheer !== false) {
           setCheer(CHEERS[Math.floor(Math.random() * CHEERS.length)]);
           timer.current = setTimeout(() => setCheer(null), 1100);
         } else setCheer(null);
@@ -130,6 +131,8 @@ export function TaskItem({ task, showProject = true, showDate = true, indent = 0
   if (showDate && task.date) meta.push(<span key="d" className={overdue ? 'red' : ''}>{fmtLong(task.date)}{task.time ? ' ' + task.time : ''}</span>);
   if (showProject) meta.push(<span key="p">{project ? project.name : 'Без проекта'}</span>);
   if (parent && indent === 0) meta.push(<span key="pa">{parent.title}</span>);
+  const cl = progress(task);
+  if (cl.total) meta.unshift(<span key="cl" className={'cl-meta' + (cl.done === cl.total ? ' full' : '')}>☑ {cl.done}/{cl.total}</span>);
   const tags = task.tags.map((id) => data.tags.find((t) => t.id === id)).filter(Boolean);
   return (
     <div className={'task' + (task.done ? ' done' : '')} style={{ paddingLeft: 16 + indent * 28 }} {...lp}>

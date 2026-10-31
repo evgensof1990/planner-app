@@ -7,6 +7,7 @@ import { createHash } from 'node:crypto';
 import { parseEvents, expandEvents, escapeText } from '../src/icalparse.js';
 import { keyOf, pad } from '../src/date.js';
 import { areaOf, DEFAULT_DURATION, DAY_SLOT } from '../src/scheduler.js';
+import { checklistText } from '../src/checklist.js';
 
 export { areaOf, DEFAULT_DURATION };
 
@@ -40,6 +41,8 @@ function fold(line) {
   return out.join('\r\n ');
 }
 
+const describe = (task) => [task.notes || '', checklistText(task)].filter(Boolean).join('\n\n');
+
 export function taskIcs(task) {
   const start = taskStart(task);
   const end = new Date(start.getTime() + (task.duration || DEFAULT_DURATION) * 6e4);
@@ -55,7 +58,7 @@ export function taskIcs(task) {
     // without a time: a reminder of the day, not busy
     ...(task.time ? [] : ['TRANSP:TRANSPARENT']),
     `SUMMARY:${escapeText((task.done ? '✓ ' : '') + (task.title || 'Задача'))}`,
-    ...(task.notes ? [`DESCRIPTION:${escapeText(task.notes)}`] : []),
+    ...(describe(task) ? [`DESCRIPTION:${escapeText(describe(task))}`] : []),
     `X-PLANOVIK-TASK:${task.id}`,
     'END:VEVENT',
     'END:VCALENDAR',
@@ -63,7 +66,12 @@ export function taskIcs(task) {
   return lines.map(fold).join('\r\n') + '\r\n';
 }
 
-const hashOf = (task, cal) => createHash('sha1').update(JSON.stringify([task.title, task.notes || '', task.date, task.time || null, task.duration || DEFAULT_DURATION, !!task.done, cal])).digest('hex');
+// a checklist goes into the event description; tasks without one keep their old hash
+const hashOf = (task, cal) => {
+  const parts = [task.title, task.notes || '', task.date, task.time || null, task.duration || DEFAULT_DURATION, !!task.done, cal];
+  if (checklistText(task)) parts.push(checklistText(task));
+  return createHash('sha1').update(JSON.stringify(parts)).digest('hex');
+};
 
 export class CalendarSync {
   constructor({ store, dav, workName, personalName, log = console }) {
