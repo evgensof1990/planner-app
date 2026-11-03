@@ -24,7 +24,17 @@ const HELP = [
   '/today — план на сегодня',
   '/week — неделя',
   '/plan — разложить задачи без времени на сегодня',
+  '',
+  'Регулярное напоминание: напишите дело со временем (<i>выпить витамины в 9:50</i>) и нажмите «🔁 Повтор» под карточкой.',
 ].join('\n');
+
+// short labels for the repeat picker
+const REPEAT_KEYS = [
+  ['daily', 'Каждый день'],
+  ['weekdays', 'По будням'],
+  ['weekly', 'Каждую неделю'],
+  ['monthly', 'Каждый месяц'],
+];
 
 export class TelegramBot {
   constructor({ store, calsync = null, stt = null, digestTime = '08:30', log = console }) {
@@ -185,9 +195,18 @@ export class TelegramBot {
     return { text: areaOf(t, this.store.data.projects) === 'work' ? '🏠 Сделать личной' : '💼 Сделать рабочей', callback_data: `a|${t.id}` };
   }
 
+  // «🔁 Повтор» and «🔔» under a task card: a regular reminder without remembering the phrasing
+  repeatRow(t) {
+    return [
+      { text: t.repeat ? '🔁 ' + (REPEATS.find((r) => r[0] === t.repeat)?.[1] || 'Повтор') : '🔁 Повтор', callback_data: `rp|${t.id}` },
+      { text: t.remind != null ? '🔕 Не напоминать' : '🔔 Напомнить', callback_data: `b|${t.id}` },
+    ];
+  }
+
   confirm(chat, t, messageId) {
     const keys = [
       [{ text: '✅ Создать', callback_data: `ok|${t.id}` }, this.areaKey(t)],
+      this.repeatRow(t),
       t.time ? [{ text: '✏️ Другое время', callback_data: `c|${t.id}` }] : [{ text: '🕒 Подобрать время', callback_data: `p|${t.id}` }, { text: '✏️ Своё время', callback_data: `c|${t.id}` }],
       [{ text: '↩️ Отменить', callback_data: `d|${t.id}` }],
     ];
@@ -212,6 +231,21 @@ export class TelegramBot {
     return this.task(id);
   }
 
+  // a saved task: its card keeps the buttons to change the repeat, the reminder and the time
+  savedCard(chat, mid, t) {
+    return this.edit(chat, mid, `✅ <b>${esc(t.title)}</b>\n${this.meta(t)}`, [this.repeatRow(t), [{ text: '✏️ Изменить время', callback_data: `c|${t.id}` }]]);
+  }
+
+  // changes a draft (and shows it again) or a saved task
+  patchTask(chat, mid, t, patch) {
+    if (this.drafts[t.id]) {
+      Object.assign(t, patch);
+      return this.confirm(chat, t, mid);
+    }
+    this.store.mutate((n) => Object.assign(n.tasks.find((x) => x.id === t.id), patch));
+    return this.savedCard(chat, mid, this.task(t.id));
+  }
+
   meta(t) {
     const d = this.store.data;
     const p = d.projects.find((x) => x.id === t.projectId);
@@ -223,7 +257,7 @@ export class TelegramBot {
     if (p) parts.push(`${p.emoji || '📁'} ${esc(p.name)}`);
     parts.push(areaOf(t, d.projects) === 'work' ? '💼 рабочая' : '🏠 личная');
     if (t.repeat) parts.push(`🔁 ${(REPEATS.find((r) => r[0] === t.repeat)?.[1] || '').toLowerCase()}`);
-    if (t.time && t.remind != null) parts.push('🔔 напомню');
+    if (t.remind != null) parts.push(t.time ? '🔔 напомню' : '🔔 напомню, когда будет время');
     if (t.priority) parts.push('🚩'.repeat(t.priority));
     return parts.join(' · ');
   }
@@ -273,11 +307,31 @@ export class TelegramBot {
       const reshow = !dr.task.time && (dr.task.duration || dr.task.deadline) ? this.slotOffer(chat, dr.task, `<b>${esc(dr.task.title)}</b>\n${this.meta(dr.task)}\n\nКогда сделать?`, mid) : this.confirm(chat, dr.task, mid);
       return [ack(area === 'work' ? 'Рабочая' : 'Личная'), reshow];
     }
+    if (kind === 'rp') {
+      const keys = REPEAT_KEYS.map(([k, label]) => [{ text: (t.repeat === k ? '✓ ' : '') + label, callback_data: `r|${id}|${k}` }]);
+      keys.push([{ text: 'Не повторять', callback_data: `r|${id}|-` }, { text: '← Назад', callback_data: `r|${id}|=` }]);
+      return [ack(), this.edit(chat, mid, `<b>${esc(t.title)}</b>\nКак часто повторять?`, keys)];
+    }
+    if (kind === 'r') {
+      const k = rest[0];
+      if (k === '=') return [ack(), this.drafts[id] ? this.confirm(chat, t, mid) : this.savedCard(chat, mid, t)];
+      const repeat = k === '-' ? null : k;
+      // a repeat comes with a reminder at the task's time; without a date it starts today
+      const patch = repeat ? { repeat, date: t.date || todayKey(), ...(t.remind == null ? { remind: 0 } : {}) } : { repeat: null };
+      const shown = this.patchTask(chat, mid, t, patch);
+      const hint = repeat && !t.time ? 'Повтор есть. Укажите время, чтобы напоминание приходило' : repeat ? 'Буду напоминать' : 'Повтор снят';
+      return [ack(hint), shown];
+    }
+    if (kind === 'b') {
+      const on = t.remind == null;
+      const shown = this.patchTask(chat, mid, t, { remind: on ? 0 : null });
+      return [ack(on ? (t.time ? `Напомню в ${t.time}` : 'Укажите время, чтобы напоминание пришло') : 'Напоминание выключено'), shown];
+    }
     if (kind === 'n' || kind === 'p') this.tg.await = null;
     if (kind === 'n' || kind === 'ok') {
       const fresh = !!this.drafts[id];
       const saved = this.commit(id, kind === 'n' ? { time: null } : {});
-      return [ack(fresh ? 'Создано' : 'Готово'), this.edit(chat, mid, `✅ <b>${esc(saved.title)}</b>\n${this.meta(saved)}`)];
+      return [ack(fresh ? 'Создано' : 'Готово'), this.savedCard(chat, mid, saved)];
     }
     if (kind === 'p') return [ack(), this.slotOffer(chat, t, `<b>${esc(t.title)}</b>\nКогда сделать?`, mid)];
     if (kind === 'd') {

@@ -158,3 +158,28 @@ test('«напомни … каждый день в 9:45»: a daily task the bot
   assert.equal(again.date, addDays(t.date, 2));
   assert.equal(bot.takeOutbox().filter((x) => /🔔 <b>/.test(x.params.text)).length, 1);
 });
+
+test('«🔁 Повтор» button: a draft becomes a daily reminder, and it can be changed after saving', async () => {
+  const { bot, store } = await bound();
+  const [card] = await bot.handle(msg('выпить Бринтеликс в 9:50'));
+  assert.match(btn(card, /Повтор/), /^rp\|/);
+  const id = btn(card, /Создать/).split('|')[1];
+  let [, picker] = await bot.handle(cb(`rp|${id}`));
+  assert.match(picker.params.text, /Как часто/);
+  const [ack, shown] = await bot.handle(cb(btn(picker, /Каждый день/)));
+  assert.match(ack.params.text, /напоминать/);
+  assert.match(shown.params.text, /🔁 каждый день · 🔔 напомню/);
+  assert.equal(store.data.tasks.length, 0, 'still a draft');
+  const [, saved] = await bot.handle(cb(`ok|${id}`));
+  const t = store.data.tasks.find((x) => x.id === id);
+  assert.equal(t.repeat, 'daily');
+  assert.equal(t.remind, 0);
+  assert.equal(t.time, '09:50');
+  // the saved card keeps the buttons: switch to weekdays, then turn the reminder off
+  [, picker] = await bot.handle(cb(btn(saved, /Каждый день/)));
+  await bot.handle(cb(btn(picker, /По будням/)));
+  assert.equal(store.data.tasks.find((x) => x.id === id).repeat, 'weekdays');
+  const [, off] = await bot.handle(cb(`b|${id}`));
+  assert.equal(store.data.tasks.find((x) => x.id === id).remind, null);
+  assert.ok(keysOf(off).some((k) => /Напомнить/.test(k.text)));
+});
