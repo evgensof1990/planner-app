@@ -316,6 +316,9 @@ function Pomo() {
       <div style={{ height: 10 }} />
       <Check on={!!st.pomoAuto} onClick={() => setSettings({ pomoAuto: !st.pomoAuto })} label="Автоматически начинать следующий период" />
       <Check on={st.pomoSound !== false} onClick={() => setSettings({ pomoSound: st.pomoSound === false })} label="Звуковое оповещение об окончании периода" />
+      {getCfg()?.kind === 'server' && (
+        <Check on={!!st.pomoTelegram} onClick={() => setSettings({ pomoTelegram: !st.pomoTelegram })} label="Дублировать окончание в Telegram" />
+      )}
     </>
   );
 }

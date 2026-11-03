@@ -37,6 +37,7 @@ const RELAY_SECRET = env.TG_RELAY_SECRET || '';
 const bot = new TelegramBot({ store, calsync, stt, digestTime: env.DIGEST_TIME || '08:30' });
 
 let pushTimer = null;
+let pomoTimer = null;
 const schedulePush = () => {
   if (!calsync) return;
   clearTimeout(pushTimer);
@@ -112,6 +113,12 @@ const routes = {
     return [200, { actions: await bot.handle(body.update || {}, body.voice || null) }];
   },
   'GET /api/telegram/outbox': () => [200, { actions: bot.takeOutbox() }],
+  'POST /api/pomo': async (req) => {
+    const r = bot.setPomo((await readJson(req, 1e4)) || {});
+    clearTimeout(pomoTimer);
+    if (r.at) pomoTimer = setTimeout(() => bot.tick(), Math.min(r.at - Date.now() + 500, 2 ** 31 - 1));
+    return [200, r];
+  },
   'POST /api/voice': async (req, url) => {
     if (!stt) return [409, { error: 'Распознавание голоса не настроено на сервере' }];
     const audio = await readRaw(req, 1e6);
