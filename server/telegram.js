@@ -417,8 +417,21 @@ export class TelegramBot {
   }
 
   // ---------- proactive ----------
+  // The app reports a running Pomodoro period; when it ends the bot repeats the signal
+  setPomo({ endAt, title, body } = {}) {
+    this.tg.pomo = endAt && +endAt > Date.now() ? { endAt: +endAt, title: String(title || 'Помодоро завершено 🍅').slice(0, 100), body: String(body || '').slice(0, 200) } : null;
+    this.save();
+    return { at: this.tg.pomo?.endAt || null };
+  }
+
   tick(now = new Date()) {
     if (!this.tg.chat) return;
+    const p = this.tg.pomo;
+    if (p && now.getTime() >= p.endAt) {
+      this.tg.pomo = null;
+      // a late server (asleep, restarted) does not send a stale signal
+      if (now.getTime() - p.endAt < 10 * 6e4) this.tg.outbox.push(this.say(this.tg.chat, `⏰ <b>${esc(p.title)}</b>${p.body ? '\n' + esc(p.body) : ''}`));
+    }
     const day = keyOf(now);
     const hm = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
     const sent = this.tg.sent;

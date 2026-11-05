@@ -1,136 +1,234 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import Icon from './icons.jsx';
 import { IconBtn, useUi } from './components.jsx';
 import { useStore } from './store.jsx';
 import { addDays, parseKey, pad, todayKey, fmtDuration, WD } from './date.js';
+import {
+  advance,
+  chime,
+  closeMini,
+  doneText,
+  getPomo,
+  leftSec,
+  miniFloats,
+  notifyState,
+  openMini,
+  phaseMinutes,
+  pomoCfg,
+  readStoredPomo,
+  setPomo,
+  systemNotify,
+  unlockAudio,
+  useMini,
+  usePomo,
+} from './pomoengine.js';
+import { isNative } from './notify.js';
+import { api, getCfg, isServer } from './sync.js';
 
 const PRESETS = [5, 10, 15, 20, 25, 30, 45, 60];
-const SKEY = 'planner-pomo-state';
+const PHASE_NAME = { work: 'Работа', short: 'Короткий перерыв', long: 'Длинный перерыв' };
+const APP_TITLE = 'Планнер';
+const clock = (sec) => `${pad(Math.floor(sec / 60))}:${pad(Math.floor(sec % 60))}`;
 
-const loadState = () => {
-  try {
-    return JSON.parse(localStorage.getItem(SKEY)) || null;
-  } catch (e) {
-    return null;
-  }
-};
+function startPause() {
+  unlockAudio();
+  import('./notify.js').then((m) => m.ensurePermission());
+  setPomo((s) => {
+    const left = leftSec(s);
+    return s.running ? { ...s, running: false, left, endAt: null } : { ...s, running: true, endAt: Date.now() + left * 1000, doneAt: null };
+  });
+}
 
-function beep(sound = true) {
-  try {
-    if (!sound) throw 0;
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    [0, 0.35, 0.7].forEach((t) => {
-      const o = ctx.createOscillator();
-      const g = ctx.createGain();
-      o.frequency.value = 880;
-      g.gain.setValueAtTime(0.25, ctx.currentTime + t);
-      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + t + 0.3);
-      o.connect(g).connect(ctx.destination);
-      o.start(ctx.currentTime + t);
-      o.stop(ctx.currentTime + t + 0.3);
-    });
-  } catch (e) {
-    /* ignore */
-  }
-  navigator.vibrate?.([300, 150, 300]);
+// Runs for the whole app (not only on the Pomodoro screen): ends periods on time,
+// rings, shows the system notification, keeps the tab title and the mini window.
+export function PomoRunner() {
+  const { data, addPomo } = useStore();
+  const ui = useUi();
+  const st = usePomo();
+  const win = useMini();
+  const cfg = pomoCfg(data.settings);
+  const ref = useRef();
+  ref.current = { cfg, ui, addPomo };
+
+  const finish = useCallback(() => {
+    const s = getPomo();
+    if (!s.running || s.endAt > Date.now()) return;
+    // another tab of the app may have ended this period already
+    const stored = readStoredPomo();
+    if (stored && stored.endAt !== s.endAt) return setPomo(stored);
+    const { cfg, ui, addPomo } = ref.current;
+    const r = advance(s, cfg);
+    if (!r) return;
+    setPomo(r.next);
+    if (r.done === 'work') addPomo({ minutes: r.minutes, kind: 'pomo' });
+    const { title, body } = doneText(r.done, r.next.phase);
+    ui.toast(`${title}. ${body}`);
+    if (cfg.sound) chime();
+    if (!isNative) systemNotify(title, body);
+  }, []);
+
+  // a one-off timer exactly at the end: browsers throttle repeating timers in a
+  // background tab (up to once a minute), a single timer only slightly
+  useEffect(() => {
+    if (!st.running) return;
+    const id = setTimeout(finish, Math.max(0, st.endAt - Date.now()) + 30);
+    return () => clearTimeout(id);
+  }, [st.running, st.endAt]);
+
+  // safety net: regular check, plus whenever the tab or the window comes back
+  useEffect(() => {
+    const tick = () => {
+      finish();
+      const s = getPomo();
+      document.title = s.running ? `${s.phase === 'work' ? '🍅' : '☕'} ${clock(leftSec(s))} · ${APP_TITLE}` : APP_TITLE;
+    };
+    tick();
+    const iv = setInterval(tick, 1000);
+    document.addEventListener('visibilitychange', tick);
+    window.addEventListener('focus', tick);
+    return () => {
+      clearInterval(iv);
+      document.removeEventListener('visibilitychange', tick);
+      window.removeEventListener('focus', tick);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (isNative) ui.syncNotify?.();
+  }, [st.running, st.endAt]);
+
+  // duplicate the end to Telegram through the own server (if switched on)
+  useEffect(() => {
+    const sc = getCfg();
+    if (isNative || !isServer(sc) || (!cfg.telegram && !st.running)) return;
+    const s = getPomo();
+    const body = cfg.telegram && s.running ? { endAt: s.endAt, ...doneText(s.phase || 'work', advance(s, cfg, s.endAt)?.next.phase) } : { endAt: null };
+    api(sc, '/api/pomo', { method: 'POST', body: JSON.stringify(body) }).catch(() => {});
+  }, [st.running, st.endAt, cfg.telegram]);
+
+  return win ? createPortal(<PomoMini win={win} onTick={finish} />, win.document.body) : null;
+}
+
+function PomoMini({ win, onTick }) {
+  const st = usePomo();
+  const [, force] = useState(0);
+  useEffect(() => {
+    // the mini window's own timer is not throttled: it is visible even when the tab is not
+    const iv = win.setInterval(() => {
+      onTick();
+      force((x) => x + 1);
+    }, 500);
+    return () => win.clearInterval(iv);
+  }, [win]);
+  const phase = st.phase || 'work';
+  const alert = !st.running && st.doneAt && Date.now() - st.doneAt < 15 * 6e4;
+  const sec = leftSec(st);
+  const progress = 1 - sec / (st.minutes * 60);
+  return (
+    <div className={'pomo-mini' + (alert ? ' alert' : '') + (phase !== 'work' ? ' rest' : '')}>
+      <div className="pm-phase">{alert ? (phase === 'work' ? 'Перерыв закончился' : 'Помодоро завершено 🍅') : PHASE_NAME[phase]}</div>
+      <div className="pm-time">{clock(sec)}</div>
+      <div className="pm-bar">
+        <i style={{ width: `${Math.min(100, Math.max(0, progress * 100))}%` }} />
+      </div>
+      <div className="pm-btns">
+        <button className="pm-play" onClick={startPause} title={st.running ? 'Пауза' : 'Старт'}>
+          <Icon name={st.running ? 'pause' : 'play'} size={22} stroke={2.4} />
+        </button>
+        <button onClick={() => window.focus()} title="Открыть планнер">
+          <Icon name="open" size={18} />
+        </button>
+        <button onClick={closeMini} title="Закрыть мини-окно">
+          <Icon name="close" size={18} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function NotifyHint() {
+  const [perm, setPerm] = useState(notifyState);
+  if (isNative || perm === 'unsupported') return null;
+  const test = () => {
+    unlockAudio();
+    chime();
+    systemNotify('Проверка уведомления 🍅', 'Так придёт сигнал об окончании помодоро');
+  };
+  if (perm === 'granted')
+    return (
+      <div className="pomo-hint">
+        <button className="link" onClick={test} title="Если уведомление не появилось, на Mac включите его для браузера: Системные настройки → Уведомления">
+          Проверить звук и уведомление
+        </button>
+      </div>
+    );
+  return (
+    <div className="pomo-hint warn">
+      {perm === 'denied' ? (
+        <>Уведомления для сайта запрещены: разрешите их в настройках сайта (значок слева от адреса), иначе об окончании будет слышен только звук. На Mac также проверьте Системные настройки → Уведомления → ваш браузер.</>
+      ) : (
+        <>
+          Включите уведомления, чтобы узнать об окончании, даже если вкладка в фоне.{' '}
+          <button className="link" onClick={() => Notification.requestPermission().then(setPerm)}>
+            Включить
+          </button>
+        </>
+      )}
+    </div>
+  );
 }
 
 export function PomodoroView() {
-  const { data, addPomo, setSettings } = useStore();
+  const { data, setSettings, addPomo } = useStore();
   const ui = useUi();
   const [tab, setTab] = useState('pomo');
-  const [st, setSt] = useState(
-    () =>
-      loadState() || {
-        minutes: data.settings.pomoMinutes || 25,
-        running: false,
-        endAt: null,
-        left: (data.settings.pomoMinutes || 25) * 60,
-        cycles: 0,
-        sw: { running: false, startAt: null, acc: 0 },
-      }
-  );
+  const st = usePomo();
+  const win = useMini();
   const [, force] = useState(0);
-  const stRef = useRef(st);
-  stRef.current = st;
-  const ss0 = data.settings;
-  const cfg = { work: ss0.pomoMinutes || 25, short: ss0.pomoShort || 5, long: ss0.pomoLong || 15, every: ss0.pomoEvery || 4, auto: !!ss0.pomoAuto, sound: ss0.pomoSound !== false };
-  const cfgRef = useRef(cfg);
-  cfgRef.current = cfg;
+  const cfg = pomoCfg(data.settings);
   const phase = st.phase || 'work';
   // settings changed while idle: apply new phase length
   useEffect(() => {
     if (st.running) return;
-    const mins = phase === 'work' ? cfg.work : phase === 'long' ? cfg.long : cfg.short;
-    if (mins !== st.minutes) setSt((x) => ({ ...x, minutes: mins, left: mins * 60 }));
+    const mins = phaseMinutes(phase, cfg);
+    if (mins !== st.minutes) setPomo((x) => ({ ...x, minutes: mins, left: mins * 60 }));
   }, [cfg.work, cfg.short, cfg.long]);
 
   useEffect(() => {
-    localStorage.setItem(SKEY, JSON.stringify(st));
-  }, [st]);
-
-  useEffect(() => {
-    if (st.running) import('./notify.js').then((m) => m.ensurePermission());
-    ui.syncNotify?.();
-  }, [st.running, st.endAt]);
-
-  useEffect(() => {
-    const iv = setInterval(() => {
-      const s = stRef.current;
-      if (s.running && s.endAt <= Date.now()) {
-        const cfg = cfgRef.current;
-        const phase = s.phase || 'work';
-        let next;
-        let cycles = s.cycles;
-        if (phase === 'work') {
-          addPomo({ minutes: s.minutes, kind: 'pomo' });
-          cycles = s.cycles + 1;
-          next = cycles % cfg.every === 0 ? 'long' : 'short';
-          ui.toast(next === 'long' ? 'Помодоро завершено! Время длинного перерыва 🍅' : 'Помодоро завершено! Время отдохнуть 🍅');
-        } else {
-          next = 'work';
-          if (cycles >= cfg.every) cycles = 0;
-          ui.toast('Перерыв закончился, пора за работу 💪');
-        }
-        beep(cfg.sound);
-        const mins = next === 'work' ? cfg.work : next === 'long' ? cfg.long : cfg.short;
-        const auto = cfg.auto;
-        setSt({ ...s, phase: next, minutes: mins, running: auto, endAt: auto ? Date.now() + mins * 6e4 : null, left: mins * 60, cycles });
-      }
-      force((x) => x + 1);
-    }, 500);
+    const iv = setInterval(() => force((x) => x + 1), 500);
     return () => clearInterval(iv);
   }, []);
 
-  const left = st.running ? Math.max(0, (st.endAt - Date.now()) / 1000) : st.left;
+  const left = leftSec(st);
   const total = st.minutes * 60;
   const progress = 1 - left / total;
   const pick = (m) => {
     if (st.running) return;
     setSettings({ pomoMinutes: m });
-    setSt({ ...st, phase: 'work', minutes: m, left: m * 60 });
+    setPomo({ ...st, phase: 'work', minutes: m, left: m * 60, doneAt: null });
   };
-  const toggle = () => {
-    if (st.running) setSt({ ...st, running: false, left, endAt: null });
-    else setSt({ ...st, running: true, endAt: Date.now() + left * 1000 });
-  };
+  const addFocus = (minutes) => addPomo({ minutes, kind: 'focus' });
   const reset = () => {
     const spent = total - left;
-    if (phase === 'work' && spent > 60) addPomo({ minutes: Math.round(spent / 60), kind: 'focus' });
-    if (phase !== 'work' || spent < 1) setSt({ ...st, phase: 'work', running: false, endAt: null, minutes: cfg.work, left: cfg.work * 60 });
-    else setSt({ ...st, running: false, endAt: null, left: total });
+    if (phase === 'work' && spent > 60) addFocus(Math.round(spent / 60));
+    if (phase !== 'work' || spent < 1) setPomo({ ...st, phase: 'work', running: false, endAt: null, minutes: cfg.work, left: cfg.work * 60, doneAt: null });
+    else setPomo({ ...st, running: false, endAt: null, left: total, doneAt: null });
+  };
+  const mini = async () => {
+    if (win) return closeMini();
+    if (!(await openMini())) ui.toast('Браузер не дал открыть мини-окно: разрешите всплывающие окна для сайта');
   };
 
   // stopwatch
   const sw = st.sw;
   const swSec = (sw.acc + (sw.running ? Date.now() - sw.startAt : 0)) / 1000;
   const swToggle = () =>
-    setSt({ ...st, sw: sw.running ? { running: false, startAt: null, acc: sw.acc + Date.now() - sw.startAt } : { ...sw, running: true, startAt: Date.now() } });
+    setPomo({ ...st, sw: sw.running ? { running: false, startAt: null, acc: sw.acc + Date.now() - sw.startAt } : { ...sw, running: true, startAt: Date.now() } });
   const swReset = () => {
-    if (swSec > 60) addPomo({ minutes: Math.round(swSec / 60), kind: 'focus' });
-    setSt({ ...st, sw: { running: false, startAt: null, acc: 0 } });
+    if (swSec > 60) addFocus(Math.round(swSec / 60));
+    setPomo({ ...st, sw: { running: false, startAt: null, acc: 0 } });
   };
-
   const isPomo = tab === 'pomo';
   const sec = isPomo ? left : swSec;
   const mm = Math.floor(sec / 60);
@@ -149,6 +247,7 @@ export function PomodoroView() {
           </button>
         </div>
         <div className="topbar-actions">
+          {!isNative && <IconBtn name="pip" onClick={mini} title={win ? 'Закрыть мини-окно' : miniFloats() ? 'Мини-окно поверх всех окон' : 'Мини-окно'} />}
           <IconBtn name="chart" onClick={() => ui.go({ view: 'pomoStats' })} title="Статистика" />
         </div>
       </div>
@@ -164,6 +263,7 @@ export function PomodoroView() {
       ) : (
         <div className="presets" />
       )}
+      {isPomo && <NotifyHint />}
       <div className="pomo-center">
         <div className="ring">
           <svg viewBox="0 0 300 300">
@@ -201,7 +301,7 @@ export function PomodoroView() {
       </div>
       <div className="pomo-controls">
         <IconBtn name="settings" onClick={() => ui.openSettings()} />
-        <button className="play-btn" onClick={isPomo ? toggle : swToggle}>
+        <button className="play-btn" onClick={isPomo ? startPause : swToggle}>
           <Icon name={(isPomo ? st.running : sw.running) ? 'pause' : 'play'} size={30} stroke={2.4} />
         </button>
         <IconBtn name="reset" onClick={isPomo ? reset : swReset} />
@@ -297,7 +397,7 @@ export function PomoStatsView() {
 }
 
 export function pomoEndReminder() {
-  const s = loadState();
+  const s = getPomo();
   if (s && s.running && s.endAt > Date.now())
     return [(s.phase || 'work') === 'work' ? { key: 'pomo', at: new Date(s.endAt), title: 'Помодоро завершено 🍅', body: 'Время сделать перерыв' } : { key: 'pomo', at: new Date(s.endAt), title: 'Перерыв закончился', body: 'Пора за работу 💪' }];
   return [];
