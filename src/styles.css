@@ -2527,6 +2527,176 @@ textarea {
     background: var(--line2);
     margin: 0 6px;
   }
+
+  /* quick add line in the toolbar */
+  .qb {
+    position: relative;
+    flex: 1;
+    max-width: 520px;
+    margin-right: auto;
+    z-index: 30;
+  }
+  .qb-field {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 34px;
+    padding: 0 4px 0 11px;
+    border-radius: 9px;
+    border: 1px solid var(--line2);
+    color: var(--text3);
+    cursor: text;
+    transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+  }
+  .qb-field:hover {
+    border-color: color-mix(in srgb, var(--line2) 60%, var(--text3));
+  }
+  .qb.open .qb-field {
+    border-color: color-mix(in srgb, var(--accent) 60%, transparent);
+    background: var(--surface0);
+    box-shadow: 0 0 0 3px var(--accent-dim);
+    color: var(--accent);
+  }
+  .qb-field input {
+    flex: 1;
+    min-width: 0;
+    height: 100%;
+    background: none;
+    border: 0;
+    outline: none;
+    color: var(--text);
+    font: inherit;
+    font-size: 14px;
+  }
+  .qb-field input::placeholder {
+    color: var(--text3);
+  }
+  .qb-when {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    height: 26px;
+    padding: 0 9px;
+    border-radius: 7px;
+    font-size: 12.5px;
+    color: var(--text2);
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .qb-when:hover {
+    background: rgba(var(--fg-rgb), 0.06);
+  }
+  .qb-when.set {
+    color: var(--accent);
+    background: var(--accent-dim);
+  }
+  .qb-when.text {
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent);
+  }
+  .qb-pop {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    width: max(100%, 520px);
+    padding: 12px 12px 10px;
+    border-radius: 12px;
+    background: var(--surface);
+    border: 1px solid var(--line2);
+    box-shadow: 0 14px 40px rgba(0, 0, 0, 0.28);
+    animation: qbIn 0.14s ease-out;
+  }
+  @keyframes qbIn {
+    from {
+      opacity: 0;
+      transform: translateY(-4px);
+    }
+  }
+  .qb-label {
+    font-size: 11.5px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text3);
+    margin: 2px 2px 7px;
+  }
+  .qb-label:not(:first-child) {
+    margin-top: 12px;
+  }
+  .qb-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .qb-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    height: 28px;
+    padding: 0 11px;
+    border-radius: 8px;
+    font-size: 13px;
+    color: var(--text2);
+    background: rgba(var(--fg-rgb), 0.05);
+    transition: background 0.12s, color 0.12s;
+    cursor: pointer;
+  }
+  .qb-pill:hover {
+    color: var(--text);
+    background: rgba(var(--fg-rgb), 0.09);
+  }
+  .qb-pill.on {
+    color: var(--accent);
+    background: var(--accent-dim);
+    font-weight: 500;
+  }
+  .qb-pill.icon {
+    padding: 0 9px;
+  }
+  .qb-time input {
+    background: none;
+    border: 0;
+    outline: none;
+    color: inherit;
+    font: inherit;
+    width: 50px;
+    color-scheme: inherit;
+  }
+  .qb-time input::-webkit-calendar-picker-indicator {
+    display: none;
+  }
+  .qb-cal {
+    margin: 10px -4px 0;
+    padding: 6px 0 2px;
+    border-radius: 10px;
+    background: var(--surface0);
+  }
+  .qb-cal .mcal-day {
+    height: 34px;
+    width: 34px;
+    font-size: 13.5px;
+  }
+  .qb-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-top: 12px;
+    padding-top: 10px;
+    border-top: 1px solid var(--line);
+    font-size: 12px;
+    color: var(--text3);
+  }
+  .qb-foot i {
+    color: var(--text2);
+    font-style: normal;
+  }
+  .qb-foot kbd {
+    font: inherit;
+    font-size: 11px;
+    padding: 2px 6px;
+    border-radius: 5px;
+    border: 1px solid var(--line2);
+    color: var(--text2);
+  }
 }
 .ring-phase {
   font-size: 13px;
