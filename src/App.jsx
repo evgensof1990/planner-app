@@ -12,6 +12,7 @@ import { GoalsView, ReviewView, PlanSheet } from './goals.jsx';
 import { CalendarView, YandexCalendarLink } from './calendar.jsx';
 import { PomodoroView, PomoStatsView, pomoEndReminder } from './pomodoro.jsx';
 import { Sidebar } from './sidebar.jsx';
+import { QuickBar } from './quickbar.jsx';
 import { SettingsSheet } from './settings.jsx';
 import { TOOL_ITEMS, TOOL_SHORT, THEMES, DEFAULT_ACCENT, isHidden } from './layout.js';
 import { isNative, syncNotifications, taskReminders, ensurePermission } from './notify.js';
@@ -297,7 +298,7 @@ export default function App() {
         </aside>
         <div className="drawer-backdrop" onClick={() => setDrawer(false)} />
         <main className="main">
-          <Toolbar route={route} ui={ui} />
+          <Toolbar route={route} ui={ui} defaults={fabDefaults()} />
           {view}
           {!NO_FAB.has(route.view) && (
             <button className="fab" onClick={() => ui.quickAdd(fabDefaults())} aria-label="Добавить задачу">
@@ -338,7 +339,9 @@ export default function App() {
   );
 }
 
-function Toolbar({ route, ui }) {
+const NO_QUICKBAR = new Set(['search', 'trash', 'archive']);
+
+function Toolbar({ route, ui, defaults }) {
   const { data, setSettings } = useStore();
   const st = data.settings;
   const collapsed = !!st.toolCollapsed;
@@ -365,6 +368,7 @@ function Toolbar({ route, ui }) {
   if (route.view === 'pomo' || route.view === 'pomoStats') return null;
   return (
     <div className="toolbar">
+      {!NO_QUICKBAR.has(route.view) && <QuickBar defaults={defaults} />}
       {route.view === 'calendar' && <YandexCalendarLink className="tb-yandex" />}
       {items.map(([k, label, ic]) =>
         k === 'search' ? (
