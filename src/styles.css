@@ -2030,6 +2030,15 @@ textarea {
     width: 360px;
   }
 }
+.task-date {
+  cursor: pointer;
+  border-radius: 4px;
+}
+@media (hover: hover) {
+  .task-date:hover {
+    text-decoration: underline;
+  }
+}
 .task-meta .sep {
   margin: 0 4px;
 }
