@@ -777,7 +777,7 @@ function Checklist({ task, onChange, onAllDone, autoFocus }) {
       {items.map((it) => (
         <div key={it.id} className={'sub-row cl-row' + (it.done ? ' done' : '')}>
           <Checkbox quiet checked={it.done} onChange={() => set(items.map((i) => (i.id === it.id ? { ...i, done: !i.done } : i)))} />
-          <input value={it.title} onChange={(e) => onChange(items.map((i) => (i.id === it.id ? { ...i, title: e.target.value } : i)))} onBlur={(e) => !e.target.value.trim() && onChange(items.filter((i) => i.id !== it.id))} />
+          <AutoText line value={it.title} onChange={(v) => onChange(items.map((i) => (i.id === it.id ? { ...i, title: v } : i)))} onBlur={(e) => !e.target.value.trim() && onChange(items.filter((i) => i.id !== it.id))} />
           <button className="icon-btn sm" aria-label="Удалить пункт" onClick={() => onChange(items.filter((i) => i.id !== it.id))}>
             <Icon name="close" size={16} />
           </button>
@@ -807,14 +807,26 @@ function Checklist({ task, onChange, onAllDone, autoFocus }) {
 }
 
 /* ---------------- Task detail ---------------- */
-function AutoText({ value, onChange, className, placeholder }) {
+function AutoText({ value, onChange, className, placeholder, onBlur, line }) {
   const ref = useRef();
   useEffect(() => {
     const el = ref.current;
     el.style.height = 'auto';
     el.style.height = el.scrollHeight + 'px';
   }, [value]);
-  return <textarea ref={ref} rows={1} className={className} placeholder={placeholder} value={value} onChange={(e) => onChange(e.target.value)} />;
+  return (
+    <textarea
+      ref={ref}
+      rows={1}
+      className={className}
+      placeholder={placeholder}
+      value={value}
+      // `line`: one line of text that wraps to show all of it; Enter finishes instead of a new line
+      onChange={(e) => onChange(line ? e.target.value.replace(/\s*\n\s*/g, ' ') : e.target.value)}
+      onKeyDown={line ? (e) => e.key === 'Enter' && (e.preventDefault(), e.currentTarget.blur()) : undefined}
+      onBlur={onBlur}
+    />
+  );
 }
 
 export function TaskDetail({ id, onClose }) {
@@ -936,7 +948,7 @@ export function TaskDetail({ id, onClose }) {
           {subs.map((s) => (
             <div key={s.id} className={'sub-row' + (s.done ? ' done' : '')}>
               <Checkbox checked={s.done} onChange={() => toggleTask(s.id)} />
-              <input value={s.title} onChange={(e) => updateTask(s.id, { title: e.target.value })} />
+              <AutoText line value={s.title} onChange={(v) => updateTask(s.id, { title: v })} />
               <button className="icon-btn sm" onClick={() => ui.openTask(s.id)}>
                 <Icon name="open" size={16} />
               </button>

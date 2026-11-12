@@ -1179,7 +1179,17 @@ textarea {
 .sub-row .cb {
   margin-top: 0;
 }
-.sub-row.done input {
+/* checklist items and subtasks wrap to show the whole text */
+.sub-row textarea {
+  flex: 1;
+  min-width: 0;
+  resize: none;
+  overflow: hidden;
+  padding: 9px 0;
+  line-height: 20px;
+}
+.sub-row.done input,
+.sub-row.done textarea {
   color: var(--text3);
   text-decoration: line-through;
 }
