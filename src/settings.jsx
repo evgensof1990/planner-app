@@ -373,8 +373,10 @@ function DataPane({ onClose }) {
       try {
         const r = convertTickTick(await inp.files[0].text());
         const done = (mode) => {
+          const has = new Set(data.tasks.map((t) => t.id));
+          const fresh = mode === 'add' ? r.tasks.filter((t) => !has.has(t.id) && !(data.deletedIds || {})[t.id]).length : r.tasks.length;
           importTickTick(r, mode);
-          ui.toast(`Перенесено задач: ${r.tasks.length}, проектов: ${r.projects.length}`);
+          ui.toast(mode === 'add' && !fresh ? 'Все задачи из файла уже есть' : `Перенесено задач: ${fresh}`);
           onClose();
         };
         ui.confirm(
