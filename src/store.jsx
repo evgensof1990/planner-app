@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { addDays, todayKey, nextRepeat } from './date.js';
+import { addDays, todayKey, nextRepeat, repeatCopyId } from './date.js';
 import { goalsPlan } from './goalsplan.js';
 import { stamp, merge, canon, getCfg, setCfg, readGist, writeGist, findGist, createGist, isServer, serverRead, serverSync } from './sync.js';
 
@@ -131,11 +131,13 @@ export function StoreProvider({ children }) {
             justDone.add(t.id);
             // a repeating task leaves a fresh copy on its next date
             const next = t.repeat && t.date && nextRepeat(t.date, t.repeat);
-            if (next && !t.parentId) {
+            const copyId = next && repeatCopyId(t, next);
+            if (next && !t.parentId && !n.tasks.some((x) => x.id === copyId)) {
               n.tasks.push(
                 mkTask({
                   ...t,
-                  id: uid(),
+                  id: copyId,
+                  series: t.series || t.id,
                   date: next,
                   done: false,
                   doneAt: null,
@@ -146,8 +148,8 @@ export function StoreProvider({ children }) {
                   ...(t.checklist ? { checklist: t.checklist.map((i) => ({ ...i, id: uid(), done: false })) } : {}),
                 })
               );
-              t.repeat = null;
             }
+            if (next && !t.parentId) t.repeat = null;
             if (!t.parentId && n.settings.autoArchive !== false) t.archived = true;
           } else {
             justDone.delete(t.id);

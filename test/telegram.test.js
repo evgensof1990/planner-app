@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Store } from '../server/store.js';
 import { TelegramBot } from '../server/telegram.js';
-import { todayKey, addDays } from '../src/date.js';
+import { todayKey, addDays, repeatCopyId } from '../src/date.js';
 
 const CHAT = 42;
 const msg = (text, extra = {}) => ({ message: { message_id: 1, chat: { id: CHAT }, text, ...extra } });
@@ -182,4 +182,25 @@ test('«🔁 Повтор» button: a draft becomes a daily reminder, and it can
   const [, off] = await bot.handle(cb(`b|${id}`));
   assert.equal(store.data.tasks.find((x) => x.id === id).remind, null);
   assert.ok(keysOf(off).some((k) => /Напомнить/.test(k.text)));
+});
+
+test('a repeating task marked done both in Telegram and in a phone that had not synced yet leaves one copy', async () => {
+  const { store, bot } = await bound();
+  const day = todayKey();
+  store.mutate((n) => n.tasks.push({ id: 'pill', title: 'Выпить Бринтеликс', date: day, time: '09:50', repeat: 'daily', remind: 0, done: false }));
+  // the phone still has the undone task, the bot marks it done
+  const phone = JSON.parse(JSON.stringify(store.data));
+  bot.complete('pill');
+  // the phone marks it done too, as the app does, and syncs later
+  const t = phone.tasks.find((x) => x.id === 'pill');
+  const later = Date.now() + 1000;
+  Object.assign(t, { done: true, repeat: null, updatedAt: later });
+  phone.tasks.push({ ...t, id: repeatCopyId({ id: 'pill' }, addDays(day, 1)), series: 'pill', date: addDays(day, 1), done: false, repeat: 'daily', updatedAt: later });
+  store.sync(phone);
+  const open = store.data.tasks.filter((x) => !x.done && !x.deleted);
+  assert.equal(open.length, 1);
+  assert.equal(open[0].date, addDays(day, 1));
+  // the copy of the copy keeps the same series, so the next day is deduplicated the same way
+  bot.complete(open[0].id);
+  assert.equal(store.data.tasks.find((x) => !x.done).id, repeatCopyId({ id: 'pill' }, addDays(day, 2)));
 });
