@@ -5,7 +5,7 @@
 import { randomInt } from 'node:crypto';
 import { parseQuick } from '../src/quickparse.js';
 import { suggestSlots, slotLabel, planBatch, areaOf, DEFAULT_DURATION } from '../src/scheduler.js';
-import { addDays, keyOf, parseKey, todayKey, relLabel, WD, REPEATS, nextRepeat } from '../src/date.js';
+import { addDays, keyOf, parseKey, todayKey, relLabel, WD, REPEATS, nextRepeat, repeatCopyId } from '../src/date.js';
 
 const uid = () => Math.random().toString(36).slice(2, 9) + Date.now().toString(36).slice(-4);
 const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -465,10 +465,11 @@ ${when}`, [[{ text: '✅ Выполнено', callback_data: `x|${t.id}` }]]));
       if (!t || t.done) return;
       Object.assign(t, { done: true, doneAt: Date.now() });
       const next = t.repeat && t.date && nextRepeat(t.date, t.repeat);
-      if (next && !t.parentId) {
-        n.tasks.push({ ...t, id: uid(), date: next, done: false, doneAt: null, archived: false, createdAt: Date.now(), order: Date.now() });
-        t.repeat = null;
+      const copyId = next && repeatCopyId(t, next);
+      if (next && !t.parentId && !n.tasks.some((x) => x.id === copyId)) {
+        n.tasks.push({ ...t, id: copyId, series: t.series || t.id, date: next, done: false, doneAt: null, archived: false, createdAt: Date.now(), order: Date.now() });
       }
+      if (next && !t.parentId) t.repeat = null;
       if (!t.parentId && n.settings.autoArchive !== false) t.archived = true;
     });
   }
