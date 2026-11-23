@@ -107,24 +107,114 @@ export function unlockAudio() {
   }
 }
 
+const NOTES = [0, 0.35, 0.7, 1.4, 1.75, 2.1];
+
+// Puts the chime on the audio clock `delay` seconds from now. The audio clock runs in
+// its own thread, so a sound scheduled in advance plays on time even in a background
+// tab, where the page's own timers can be held back by a minute or more.
+function playAt(delay) {
+  const ctx = audio;
+  const t0 = ctx.currentTime + Math.max(0, delay);
+  return NOTES.map((t, i) => {
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.frequency.value = i % 3 === 2 ? 1175 : 880;
+    g.gain.setValueAtTime(0.0001, ctx.currentTime);
+    g.gain.setValueAtTime(0.3, t0 + t);
+    g.gain.exponentialRampToValueAtTime(0.001, t0 + t + 0.3);
+    o.connect(g).connect(ctx.destination);
+    o.start(t0 + t);
+    o.stop(t0 + t + 0.3);
+    return o;
+  });
+}
+
 export function chime() {
   try {
     unlockAudio();
-    const ctx = audio;
-    [0, 0.35, 0.7, 1.4, 1.75, 2.1].forEach((t, i) => {
-      const o = ctx.createOscillator();
-      const g = ctx.createGain();
-      o.frequency.value = i % 3 === 2 ? 1175 : 880;
-      g.gain.setValueAtTime(0.3, ctx.currentTime + t);
-      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + t + 0.3);
-      o.connect(g).connect(ctx.destination);
-      o.start(ctx.currentTime + t);
-      o.stop(ctx.currentTime + t + 0.3);
-    });
+    playAt(0);
   } catch (e) {
     /* ignore */
   }
   navigator.vibrate?.([300, 150, 300]);
+}
+
+// One chime booked ahead for the end of the running period.
+let booked = null; // { endAt, nodes }
+let bookSeq = 0;
+export function cancelChime() {
+  bookSeq++;
+  if (!booked) return;
+  booked.nodes.forEach((o) => {
+    try {
+      o.disconnect();
+    } catch (e) {
+      /* ignore */
+    }
+    try {
+      o.stop();
+    } catch (e) {
+      /* ignore */
+    }
+  });
+  booked = null;
+}
+
+export function scheduleChime(endAt) {
+  if (booked && booked.endAt === endAt) return;
+  cancelChime();
+  // only a context unlocked by a click can play without one; right after the click
+  // it may still be resuming, so book once it runs
+  if (!audio || audio.state === 'closed') return;
+  const seq = bookSeq;
+  const book = () => {
+    if (seq !== bookSeq || audio.state !== 'running' || endAt <= Date.now()) return;
+    try {
+      booked = { endAt, nodes: playAt((endAt - Date.now()) / 1000) };
+    } catch (e) {
+      booked = null;
+    }
+  };
+  if (audio.state === 'running') book();
+  else audio.resume().then(book, () => {});
+}
+
+// true when the chime for this end was booked ahead and has played (or is playing)
+export const chimeBooked = (endAt) => !!booked && booked.endAt === endAt && audio?.state === 'running';
+
+/* ---------- end timer in a worker ---------- */
+// Chrome holds back timers of a hidden tab (to once a minute after a few minutes),
+// timers inside a worker are not held back that way. The worker only says "time";
+// the page then ends the period, so a missing worker just falls back to setTimeout.
+let worker = null;
+let workerCb = null;
+function getWorker() {
+  if (worker !== null) return worker;
+  try {
+    const src = 'let t;onmessage=(e)=>{clearTimeout(t);if(e.data>=0)t=setTimeout(()=>postMessage(1),e.data)}';
+    worker = new Worker(URL.createObjectURL(new Blob([src], { type: 'text/javascript' })));
+    worker.onmessage = () => workerCb?.();
+  } catch (e) {
+    worker = false;
+  }
+  return worker;
+}
+
+// Calls fn once after ms; returns a cancel function.
+export function endTimer(ms, fn) {
+  const w = hasWindow && typeof Worker !== 'undefined' ? getWorker() : false;
+  const id = setTimeout(fn, ms);
+  if (w) {
+    workerCb = fn;
+    w.postMessage(ms);
+  }
+  return () => {
+    clearTimeout(id);
+    if (w) {
+      if (workerCb === fn) workerCb = null;
+      w.postMessage(-1);
+    }
+  };
 }
 
 /* ---------- system notification ---------- */

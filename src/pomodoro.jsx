@@ -6,9 +6,12 @@ import { useStore } from './store.jsx';
 import { addDays, parseKey, pad, todayKey, fmtDuration, WD } from './date.js';
 import {
   advance,
+  cancelChime,
   chime,
+  chimeBooked,
   closeMini,
   doneText,
+  endTimer,
   getPomo,
   leftSec,
   miniFloats,
@@ -17,6 +20,7 @@ import {
   phaseMinutes,
   pomoCfg,
   readStoredPomo,
+  scheduleChime,
   setPomo,
   systemNotify,
   unlockAudio,
@@ -64,17 +68,24 @@ export function PomoRunner() {
     if (r.done === 'work') addPomo({ minutes: r.minutes, kind: 'pomo' });
     const { title, body } = doneText(r.done, r.next.phase);
     ui.toast(`${title}. ${body}`);
-    if (cfg.sound) chime();
+    // the chime booked ahead on the audio clock has already rung on time
+    if (cfg.sound && !chimeBooked(s.endAt)) chime();
     if (!isNative) systemNotify(title, body);
   }, []);
 
-  // a one-off timer exactly at the end: browsers throttle repeating timers in a
-  // background tab (up to once a minute), a single timer only slightly
+  // a one-off timer exactly at the end, run from a worker: a hidden tab's own timers
+  // can be held back by a minute or more, a worker's are not
   useEffect(() => {
     if (!st.running) return;
-    const id = setTimeout(finish, Math.max(0, st.endAt - Date.now()) + 30);
-    return () => clearTimeout(id);
+    return endTimer(Math.max(0, st.endAt - Date.now()) + 30, finish);
   }, [st.running, st.endAt]);
+
+  // the chime is booked on the audio clock as soon as the period starts, so it rings
+  // on time even when the browser holds back everything else in a background tab
+  useEffect(() => {
+    if (!isNative && st.running && cfg.sound) scheduleChime(st.endAt);
+    else cancelChime();
+  }, [st.running, st.endAt, cfg.sound]);
 
   // safety net: regular check, plus whenever the tab or the window comes back
   useEffect(() => {
