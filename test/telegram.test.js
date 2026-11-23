@@ -184,6 +184,26 @@ test('«🔁 Повтор» button: a draft becomes a daily reminder, and it can
   assert.ok(keysOf(off).some((k) => /Напомнить/.test(k.text)));
 });
 
+test('a running Pomodoro reported by the app is repeated in Telegram once, when it ends', async () => {
+  const { bot } = await bound();
+  const end = Date.now() + 60e3;
+  bot.setPomo({ endAt: end, title: 'Помодоро завершено 🍅', body: 'Время отдохнуть' });
+  const pomo = () => bot.takeOutbox().filter((a) => /Помодоро/.test(a.params.text));
+  bot.tick(new Date(end - 1000));
+  assert.equal(pomo().length, 0);
+  bot.tick(new Date(end + 500));
+  const out = pomo();
+  assert.equal(out.length, 1);
+  assert.match(out[0].params.text, /Помодоро завершено/);
+  bot.tick(new Date(end + 60e3));
+  assert.equal(pomo().length, 0);
+  // stopped in the app: nothing is sent
+  bot.setPomo({ endAt: Date.now() + 60e3 });
+  bot.setPomo({ endAt: null });
+  bot.tick(new Date(Date.now() + 120e3));
+  assert.equal(pomo().length, 0);
+});
+
 test('a repeating task marked done both in Telegram and in a phone that had not synced yet leaves one copy', async () => {
   const { store, bot } = await bound();
   const day = todayKey();

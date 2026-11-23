@@ -10,7 +10,7 @@ import { ListView, PlansView, ProjectView, SearchView, TrashView, ArchiveView, F
 import { HabitsView } from './habits.jsx';
 import { GoalsView, ReviewView, PlanSheet } from './goals.jsx';
 import { CalendarView, YandexCalendarLink } from './calendar.jsx';
-import { PomodoroView, PomoStatsView, pomoEndReminder } from './pomodoro.jsx';
+import { PomodoroView, PomoStatsView, PomoRunner, pomoEndReminder } from './pomodoro.jsx';
 import { Sidebar } from './sidebar.jsx';
 import { QuickBar } from './quickbar.jsx';
 import { SettingsSheet } from './settings.jsx';
@@ -64,7 +64,8 @@ export default function App() {
   const pop = () => setSheets((s) => s.slice(0, -1));
 
   const syncNotify = useCallback(() => {
-    syncNotifications([...taskReminders(data.tasks), ...pomoEndReminder()]);
+    // in the browser the Pomodoro end is announced by PomoRunner itself
+    syncNotifications([...taskReminders(data.tasks), ...(isNative ? pomoEndReminder() : [])]);
   }, [data.tasks]);
 
   useEffect(() => {
@@ -335,6 +336,7 @@ export default function App() {
           </div>
         )}
       </div>
+      <PomoRunner />
     </UiCtx.Provider>
   );
 }
