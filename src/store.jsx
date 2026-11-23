@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { addDays, todayKey, nextRepeat } from './date.js';
+import { addDays, todayKey, nextRepeat, repeatCopyId } from './date.js';
 import { goalsPlan } from './goalsplan.js';
 import { stamp, merge, canon, getCfg, setCfg, readGist, writeGist, findGist, createGist, isServer, serverRead, serverSync } from './sync.js';
 
@@ -131,11 +131,13 @@ export function StoreProvider({ children }) {
             justDone.add(t.id);
             // a repeating task leaves a fresh copy on its next date
             const next = t.repeat && t.date && nextRepeat(t.date, t.repeat);
-            if (next && !t.parentId) {
+            const copyId = next && repeatCopyId(t, next);
+            if (next && !t.parentId && !n.tasks.some((x) => x.id === copyId)) {
               n.tasks.push(
                 mkTask({
                   ...t,
-                  id: uid(),
+                  id: copyId,
+                  series: t.series || t.id,
                   date: next,
                   done: false,
                   doneAt: null,
@@ -146,8 +148,8 @@ export function StoreProvider({ children }) {
                   ...(t.checklist ? { checklist: t.checklist.map((i) => ({ ...i, id: uid(), done: false })) } : {}),
                 })
               );
-              t.repeat = null;
             }
+            if (next && !t.parentId) t.repeat = null;
             if (!t.parentId && n.settings.autoArchive !== false) t.archived = true;
           } else {
             justDone.delete(t.id);
@@ -249,9 +251,31 @@ export function StoreProvider({ children }) {
             n.projects = r.projects;
             n.tags = r.tags;
           } else {
-            n.tasks.push(...r.tasks);
-            n.projects.push(...r.projects);
-            n.tags.push(...r.tags);
+            // adding again must not duplicate: projects, sections and tags with the same name are
+            // reused, and tasks already here (or deleted on purpose) are skipped
+            const pid = {};
+            const sid = {};
+            r.projects.forEach((p) => {
+              const same = n.projects.find((x) => x.name === p.name);
+              if (!same) return n.projects.push(p);
+              pid[p.id] = same.id;
+              p.sections.forEach((s) => {
+                let to = same.sections.find((x) => x.name === s.name);
+                if (!to) same.sections.push((to = { ...s }));
+                sid[s.id] = to.id;
+              });
+            });
+            const tid = {};
+            r.tags.forEach((g) => {
+              const same = n.tags.find((x) => x.name === g.name);
+              if (same) tid[g.id] = same.id;
+              else n.tags.push(g);
+            });
+            const del = n.deletedIds || {};
+            r.tasks.forEach((t) => {
+              if (del[t.id] || n.tasks.some((x) => x.id === t.id)) return;
+              n.tasks.push({ ...t, projectId: pid[t.projectId] || t.projectId, sectionId: sid[t.sectionId] || t.sectionId, tags: t.tags.map((g) => tid[g] || g) });
+            });
           }
         }),
       importGoals: () => {

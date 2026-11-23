@@ -105,8 +105,8 @@ function useLongPress(onLong, onClick) {
     },
     onPointerUp: () => clearTimeout(timer.current),
     onPointerLeave: () => clearTimeout(timer.current),
-    onClick: () => {
-      if (!fired.current) onClick();
+    onClick: (e) => {
+      if (!fired.current) onClick(e);
     },
     onContextMenu: (e) => {
       e.preventDefault();
@@ -118,17 +118,21 @@ function useLongPress(onLong, onClick) {
 }
 
 export function TaskItem({ task, showProject = true, showDate = true, indent = 0, subCount, expanded, onExpand }) {
-  const { data, toggleTask } = useStore();
+  const { data, toggleTask, updateTask } = useStore();
   const ui = useUi();
   const project = data.projects.find((p) => p.id === task.projectId);
   const parent = task.parentId && data.tasks.find((t) => t.id === task.parentId);
   const lp = useLongPress(
     (el) => ui.taskMenu(task, el),
-    () => ui.openTask(task.id)
+    (e) => {
+      // Tap on the date under the title changes the date right away
+      if (e?.target?.closest?.('.task-date')) ui.openDate(task, (v) => updateTask(task.id, v));
+      else ui.openTask(task.id);
+    }
   );
   const overdue = task.date && !task.done && task.date < todayKey();
   const meta = [];
-  if (showDate && task.date) meta.push(<span key="d" className={overdue ? 'red' : ''}>{fmtLong(task.date)}{task.time ? ' ' + task.time : ''}</span>);
+  if (showDate && task.date) meta.push(<span key="d" className={'task-date' + (overdue ? ' red' : '')} title="Изменить дату">{fmtLong(task.date)}{task.time ? ' ' + task.time : ''}</span>);
   if (showProject) meta.push(<span key="p">{project ? project.name : 'Без проекта'}</span>);
   if (parent && indent === 0) meta.push(<span key="pa">{parent.title}</span>);
   const cl = progress(task);

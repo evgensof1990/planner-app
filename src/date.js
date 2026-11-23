@@ -80,6 +80,9 @@ export const REPEATS = [
   ['monthly', 'Каждый месяц'],
   ['yearly', 'Каждый год'],
 ];
+// Id of the copy a repeating task leaves on its next date. It is the same on every device and in the bot,
+// so a task marked done twice (in the app and in Telegram, or on two phones before they synced) leaves one copy.
+export const repeatCopyId = (t, next) => `${t.series || t.id}-${next}`;
 export function nextRepeat(k, repeat) {
   const d = parseKey(k);
   if (repeat === 'daily') return addDays(k, 1);

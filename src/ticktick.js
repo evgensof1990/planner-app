@@ -58,6 +58,19 @@ function toLocal(s, tz) {
 const EMOJI_RE = /^((?:[\u{1F1E6}-\u{1F1FF}]{2})|(?:\p{Extended_Pictographic}(?:️|⃣|[\u{1F3FB}-\u{1F3FF}]|‍\p{Extended_Pictographic}️?)*))\s*/u;
 const PRIORITY = { 0: 0, 1: 1, 3: 2, 5: 3 };
 
+// "RRULE:FREQ=WEEKLY;INTERVAL=1" -> 'weekly'; only plain every-day/week/month/year rules map
+// onto the planner's repeats, anything fancier (every 2 weeks, several weekdays) is left out
+const REPEAT = { DAILY: 'daily', WEEKLY: 'weekly', MONTHLY: 'monthly', YEARLY: 'yearly' };
+function repeatFreq(rule) {
+  const m = String(rule || '').match(/FREQ=(\w+)/);
+  if (!m) return null;
+  const interval = rule.match(/INTERVAL=(\d+)/);
+  if (interval && interval[1] !== '1') return null;
+  // a weekly rule on one weekday is just "every week" from the task's date
+  if (/BY(MONTHDAY|SETPOS|MONTH)=/.test(rule) || /BYDAY=[^;]*,/.test(rule)) return null;
+  return m[1];
+}
+
 export function convertTickTick(text) {
   const rows = parseCSV(text);
   const hi = rows.findIndex((r) => r.includes('Title') && r.includes('List Name'));
@@ -96,8 +109,12 @@ export function convertTickTick(text) {
     if (!title && !col(r, 'Content')) continue;
     const tz = col(r, 'Timezone');
     const [projectId, sectionId] = getProject(col(r, 'List Name'), col(r, 'Column Name'), col(r, 'View Mode'));
-    const due = toLocal(col(r, 'Due Date') || col(r, 'Start Date'), tz);
     const allDay = col(r, 'Is All Day') !== 'false';
+    const end = toLocal(col(r, 'Due Date') || col(r, 'Start Date'), tz);
+    const start = toLocal(col(r, 'Start Date'), tz);
+    // a timed task from Start to Due is a block of time: it starts at Start and lasts until Due
+    const span = !allDay && start && end && end.ts > start.ts ? Math.round((end.ts - start.ts) / 6e4) : 0;
+    const due = span ? start : end;
     const status = col(r, 'Status');
     const done = status === '1' || status === '2';
     const completed = toLocal(col(r, 'Completed Time'), tz);
@@ -124,6 +141,8 @@ export function convertTickTick(text) {
       notes = rest.join('\n');
     }
     const t = mkTask({
+      // a stable id from the file makes a second import of the same file add nothing
+      ...(col(r, 'taskId') ? { id: 'tt-' + col(r, 'taskId') } : {}),
       title: title || notes.split('\n')[0],
       notes,
       done,
@@ -132,6 +151,8 @@ export function convertTickTick(text) {
       time: due && !allDay ? due.time : null,
       remind: due && !allDay && col(r, 'Reminder') ? 0 : null,
       priority: PRIORITY[col(r, 'Priority')] || 0,
+      ...(span ? { duration: span } : {}),
+      ...(due && REPEAT[repeatFreq(col(r, 'Repeat'))] ? { repeat: REPEAT[repeatFreq(col(r, 'Repeat'))] } : {}),
       projectId,
       sectionId,
       tags: tagIds,
