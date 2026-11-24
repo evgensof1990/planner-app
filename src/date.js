@@ -96,3 +96,17 @@ export function nextRepeat(k, repeat) {
   }
   return null;
 }
+
+// Future dates of an open repeating task inside [from, to], after its own date.
+// Only one real copy of a repeating task exists (the next one, made when the current one is done),
+// so the calendar draws the later dates from this list as previews.
+export function repeatDates(t, from, to) {
+  const out = [];
+  if (!t.repeat || !t.date || t.done || t.deleted || t.parentId) return out;
+  let k = nextRepeat(t.date, t.repeat);
+  for (let i = 0; k && k <= to && i < 800; i++) {
+    if (k >= from) out.push(k);
+    k = nextRepeat(k, t.repeat);
+  }
+  return out;
+}

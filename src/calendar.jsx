@@ -5,7 +5,7 @@ import { useStore, PRIORITY_COLORS } from './store.jsx';
 import { layoutDay } from './daylayout.js';
 import { calendarItems, onCalendarsChange, refreshStale, taskColors, taskCalendarName } from './ical.js';
 import { areaOf, DAY_SLOT } from './scheduler.js';
-import { MONTHS, MONTHS_GEN, REPEATS, WD, WD_MON, addDays, monthGrid, parseKey, todayKey, pad, weekStart } from './date.js';
+import { MONTHS, MONTHS_GEN, REPEATS, WD, WD_MON, addDays, monthGrid, parseKey, todayKey, pad, weekStart, repeatDates } from './date.js';
 
 const HOUR = 54;
 const YANDEX_CALENDAR_URL = 'https://calendar.yandex.ru/week?uid=474876932';
@@ -38,7 +38,12 @@ export function CalendarView({ day, setDay }) {
   useEffect(() => onCalendarsChange(() => bump((x) => x + 1)), []);
   useEffect(() => refreshStale(data.settings.calendars), [data.settings.calendars]);
   // done tasks stay in the calendar (also once archived), with a check mark as in Yandex Calendar
-  const tasks = [...data.tasks.filter((x) => !x.deleted && x.date), ...calendarItems(data.settings.calendars)];
+  const own = data.tasks.filter((x) => !x.deleted && x.date);
+  // a repeating task exists once (its next copy), so its later dates are drawn as previews of it
+  const shown = mode === 'month' ? monthGrid(parseKey(day).getFullYear(), parseKey(day).getMonth()).filter(Boolean) : days;
+  const range = [shown[0], shown[shown.length - 1]];
+  const previews = own.flatMap((x) => repeatDates(x, range[0], range[1]).map((k) => ({ ...x, id: `${x.id}@${k}`, src: x.id, date: k, preview: true })));
+  const tasks = [...own, ...previews, ...calendarItems(data.settings.calendars)];
   const label = (x) => (x.done ? '✓ ' : '') + x.title;
   const taskColor = taskColors(data.tasks, data.projects);
   const colorOf = (x) => (x.ext ? x.color : taskColor(x));
@@ -123,7 +128,7 @@ export function CalendarView({ day, setDay }) {
               >
                 <span className="cm-n">{parseKey(k).getDate()}</span>
                 {list.slice(0, 3).map((x) => (
-                  <span key={x.id} className={'cm-ev' + (x.done ? ' done' : '')} style={tint(x)}>
+                  <span key={x.id} className={'cm-ev' + (x.done ? ' done' : '') + (x.preview ? ' preview' : '')} style={tint(x)}>
                     {label(x)}
                   </span>
                 ))}
@@ -189,7 +194,7 @@ export function CalendarView({ day, setDay }) {
                     return (
                       <button
                         key={x.id}
-                        className={'cal-ev' + (x.done ? ' done' : '') + (tall ? ' tall' : height < 18 ? ' tiny' : '')}
+                        className={'cal-ev' + (x.done ? ' done' : '') + (x.preview ? ' preview' : '') + (tall ? ' tall' : height < 18 ? ' tiny' : '')}
                         style={{
                           top: (start / 60) * HOUR + 1,
                           height,
@@ -202,7 +207,7 @@ export function CalendarView({ day, setDay }) {
                         onClick={(e) => open(x, e, end)}
                         onContextMenu={(e) => {
                           e.preventDefault();
-                          if (!x.ext) toggleTask(x.id);
+                          if (!x.ext && !x.preview) toggleTask(x.id);
                         }}
                       >
                         {tall ? (
@@ -314,8 +319,9 @@ function EventCard({ x: item, end: evEnd, color, rect, onClose }) {
   // date, time and area changes wait for «Готово»
   const [draft, setDraft] = useState(null);
   const swipe = useRef(null);
-  const saved = item.ext ? item : data.tasks.find((t) => t.id === item.id);
-  const task = saved && draft ? { ...saved, ...draft } : saved;
+  // a preview of a later repeat opens its one real copy, shown on the preview's date
+  const saved = item.ext ? item : data.tasks.find((t) => t.id === (item.src || item.id));
+  const task = saved && draft ? { ...saved, ...draft } : saved && item.preview ? { ...saved, date: item.date } : saved;
 
   useLayoutEffect(() => {
     const m = ref.current.getBoundingClientRect();
@@ -412,7 +418,7 @@ function EventCard({ x: item, end: evEnd, color, rect, onClose }) {
       <dl className="ev-card-rows">
         <dt>Время и дата</dt>
         <dd>
-          {item.ext || draft ? (
+          {item.ext || draft || item.preview ? (
             when
           ) : (
             <button className="ev-card-when" onClick={() => setDraft({})}>
@@ -432,7 +438,10 @@ function EventCard({ x: item, end: evEnd, color, rect, onClose }) {
         {repeat && (
           <>
             <dt>Повтор</dt>
-            <dd>{repeat}</dd>
+            <dd>
+              {repeat}
+              {item.preview && `, ближайший раз ${parseKey(saved.date).getDate()} ${MONTHS_GEN[parseKey(saved.date).getMonth()]}`}
+            </dd>
           </>
         )}
         {project && (
@@ -468,6 +477,13 @@ function EventCard({ x: item, end: evEnd, color, rect, onClose }) {
           <a className="ev-card-btn wide" href={YANDEX_CALENDAR_URL} target="_blank" rel="noreferrer">
             Открыть в Яндекс Календаре
           </a>
+        ) : item.preview ? (
+          <>
+            <div style={{ flex: 1 }} />
+            <button className="ev-card-btn" onClick={edit} title="Редактировать" aria-label="Редактировать">
+              <Icon name="edit" size={20} />
+            </button>
+          </>
         ) : (
           <>
             <button className={'ev-card-btn wide' + (task.done ? '' : ' accent')} onClick={() => toggleTask(task.id)}>

@@ -1668,6 +1668,11 @@ textarea {
 .cal-ev.done {
   opacity: 0.75;
 }
+/* later dates of a repeating task: drawn from its one real copy */
+.cal-ev.preview,
+.cm-ev.preview {
+  opacity: 0.6;
+}
 .cal-month {
   flex: 1;
   display: grid;
